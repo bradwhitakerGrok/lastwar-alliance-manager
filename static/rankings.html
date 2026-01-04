@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Member Rankings - Last War: Survival</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 Last War: Survival</h1>
+            <h2>Member Rankings & Scoring System</h2>
+            <div class="user-info">
+                <span id="username-display"></span>
+                <button id="logout-btn" class="logout-btn">Logout</button>
+            </div>
+        </header>
+
+        <nav class="nav-menu">
+            <a href="/" class="nav-link">👥 Members</a>
+            <a href="/train.html" class="nav-link">🚂 Train Schedule</a>
+            <a href="/awards.html" class="nav-link">🏆 Awards</a>
+            <a href="/recommendations.html" class="nav-link">⭐ Recommendations</a>
+            <a href="/rankings.html" class="nav-link active">📊 Rankings</a>
+            <a href="/settings.html" class="nav-link">⚙️ Settings</a>
+            <a href="/profile.html" class="nav-link">👤 Profile</a>
+        </nav>
+
+        <main>
+            <section class="info-section">
+                <h3>📈 Current Ranking System</h3>
+                <div id="system-info" class="system-info-card">
+                    <p>Loading system configuration...</p>
+                </div>
+            </section>
+
+            <section class="rankings-section">
+                <h3>🏅 Member Rankings</h3>
+                <div class="rankings-controls">
+                    <button id="refresh-btn" class="primary-btn">🔄 Refresh</button>
+                    <div class="info-badge">
+                        <strong>Average Conductor Count:</strong> <span id="avg-count">-</span>
+                    </div>
+                </div>
+                
+                <div class="filter-controls">
+                    <div class="filter-group">
+                        <label for="filter-name">🔍 Filter by Name:</label>
+                        <input type="text" id="filter-name" placeholder="Enter member name...">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-rank">🏅 Filter by Rank:</label>
+                        <select id="filter-rank">
+                            <option value="">All Ranks</option>
+                            <option value="R5">R5</option>
+                            <option value="R4">R4</option>
+                            <option value="R3">R3</option>
+                            <option value="R2">R2</option>
+                            <option value="R1">R1</option>
+                        </select>
+                    </div>
+                    <button id="clear-filters-btn" class="secondary-btn">✖️ Clear Filters</button>
+                </div>
+                
+                <div id="rankings-list" class="rankings-list">
+                    <p class="loading">Loading rankings...</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="rankings.js"></script>
+</body>
+</html>

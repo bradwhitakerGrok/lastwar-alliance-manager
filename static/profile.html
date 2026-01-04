@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - Last War: Survival</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 Last War: Survival</h1>
+            <h2>My Profile</h2>
+            <div class="user-info">
+                <span id="username-display"></span>
+                <button id="logout-btn" class="logout-btn">Logout</button>
+            </div>
+        </header>
+
+        <nav class="nav-menu">
+            <a href="/" class="nav-link">👥 Members</a>
+            <a href="/train.html" class="nav-link">🚂 Train Schedule</a>
+            <a href="/awards.html" class="nav-link">🏆 Awards</a>
+            <a href="/recommendations.html" class="nav-link">⭐ Recommendations</a>
+            <a href="/rankings.html" class="nav-link">📊 Rankings</a>
+            <a href="/settings.html" class="nav-link">⚙️ Settings</a>
+            <a href="/profile.html" class="nav-link active">👤 Profile</a>
+        </nav>
+
+        <main>
+            <section class="form-section">
+                <h3>🔐 Change Password</h3>
+                <form id="password-form">
+                    <div class="form-group">
+                        <label for="current-password">Current Password:</label>
+                        <input type="password" id="current-password" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-password">New Password:</label>
+                        <input type="password" id="new-password" minlength="6" required>
+                        <span class="help-text">Minimum 6 characters</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="confirm-password">Confirm New Password:</label>
+                        <input type="password" id="confirm-password" minlength="6" required>
+                    </div>
+                    <div class="button-group">
+                        <button type="submit" class="primary-btn">🔒 Change Password</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="info-section">
+                <h3>ℹ️ Account Information</h3>
+                <div class="info-card">
+                    <p><strong>Username:</strong> <span id="profile-username">-</span></p>
+                    <p><strong>Role:</strong> <span id="profile-role">-</span></p>
+                    <p id="profile-member-info" style="display: none;"><strong>Linked Member:</strong> <span id="profile-member">-</span></p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="profile.js"></script>
+</body>
+</html>

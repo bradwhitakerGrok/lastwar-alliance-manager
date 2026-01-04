@@ -1,0 +1,39 @@
+# Git
+.git
+.gitignore
+
+# Database files (will be stored in volume)
+*.db
+*.db-shm
+*.db-wal
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Fly.io
+fly.toml
+
+# Documentation
+README.md
+.github

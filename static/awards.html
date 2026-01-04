@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Awards - Last War Alliance</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏆 Last War: Survival</h1>
+            <h2>Weekly Awards</h2>
+            <div class="user-info">
+                <span id="username-display"></span>
+                <button id="logout-btn" class="logout-btn">Logout</button>
+            </div>
+        </header>
+
+        <nav class="nav-menu">
+            <a href="/" class="nav-link">👥 Members</a>
+            <a href="/train.html" class="nav-link">🚂 Train Schedule</a>
+            <a href="/awards.html" class="nav-link active">🏆 Awards</a>
+            <a href="/recommendations.html" class="nav-link">⭐ Recommendations</a>
+            <a href="/rankings.html" class="nav-link">📊 Rankings</a>
+            <a href="/settings.html" class="nav-link">⚙️ Settings</a>
+            <a href="/profile.html" class="nav-link">👤 Profile</a>
+        </nav>
+
+        <main>
+            <section class="awards-controls">
+                <div class="week-selector">
+                    <button id="prev-week" class="week-nav-btn">← Previous Week</button>
+                    <div class="week-info">
+                        <h3 id="week-display">Week of January 7, 2025</h3>
+                        <p class="week-subtitle">Sunday Awards</p>
+                    </div>
+                    <button id="next-week" class="week-nav-btn">Next Week →</button>
+                </div>
+                <div class="awards-actions">
+                    <button id="toggle-all-awards-btn" class="secondary-btn">⚙️ Show All Awards</button>
+                    <button id="save-awards-btn" class="save-btn">💾 Save Awards</button>
+                    <button id="clear-awards-btn" class="clear-btn">🗑️ Clear Week</button>
+                </div>
+            </section>
+
+            <section class="awards-form-section">
+                <div id="awards-grid" class="awards-grid">
+                    <!-- Awards will be generated here -->
+                </div>
+            </section>
+
+            <section class="history-section">
+                <h3>📊 Awards History</h3>
+                <div class="history-filters">
+                    <input type="text" id="history-search" placeholder="🔍 Search by member name..." class="history-search">
+                    <select id="week-filter" class="week-filter">
+                        <option value="">All Weeks</option>
+                    </select>
+                </div>
+                <div id="history-content" class="history-content">
+                    <p class="loading">Loading history...</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="awards.js"></script>
+</body>
+</html>

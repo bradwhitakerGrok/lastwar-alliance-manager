@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Last War: Survival</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 Last War: Survival</h1>
+            <h2>Auto-Schedule Settings</h2>
+            <div class="user-info">
+                <span id="username-display"></span>
+                <button id="logout-btn" class="logout-btn">Logout</button>
+            </div>
+        </header>
+
+        <nav class="nav-menu">
+            <a href="/" class="nav-link">👥 Members</a>
+            <a href="/train.html" class="nav-link">🚂 Train Schedule</a>
+            <a href="/awards.html" class="nav-link">🏆 Awards</a>
+            <a href="/recommendations.html" class="nav-link">⭐ Recommendations</a>
+            <a href="/rankings.html" class="nav-link">📊 Rankings</a>
+            <a href="/settings.html" class="nav-link active">⚙️ Settings</a>
+            <a href="/profile.html" class="nav-link">👤 Profile</a>
+        </nav>
+
+        <main>
+            <section class="form-section">
+                <h3>Ranking System Configuration</h3>
+                <p class="info-text">Configure the point system used for auto-scheduling train conductors. Higher points = higher priority.</p>
+                
+                <form id="settings-form">
+                    <div class="settings-group">
+                        <h4>🏆 Award Points</h4>
+                        <div class="form-group">
+                            <label for="award-first">1st Place Award:</label>
+                            <input type="number" id="award-first" min="0" required>
+                            <span class="help-text">Points given for being 1st in any weekly award</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="award-second">2nd Place Award:</label>
+                            <input type="number" id="award-second" min="0" required>
+                            <span class="help-text">Points given for being 2nd in any weekly award</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="award-third">3rd Place Award:</label>
+                            <input type="number" id="award-third" min="0" required>
+                            <span class="help-text">Points given for being 3rd in any weekly award</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h4>⭐ Recommendation Points</h4>
+                        <div class="form-group">
+                            <label for="recommendation-points">Points Per Recommendation:</label>
+                            <input type="number" id="recommendation-points" min="0" required>
+                            <span class="help-text">Points given for each active recommendation</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h4>⏱️ Recent Conductor Penalty</h4>
+                        <div class="form-group">
+                            <label for="recent-conductor-days">Penalty Duration (days):</label>
+                            <input type="number" id="recent-conductor-days" min="1" required>
+                            <span class="help-text">Remove (this value - days since last conductor) points. If ≤0, member won't be penalized.</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h4>📊 Above Average Penalty</h4>
+                        <div class="form-group">
+                            <label for="above-average-penalty">Penalty Points:</label>
+                            <input type="number" id="above-average-penalty" min="0" required>
+                            <span class="help-text">Points removed if member has been conductor more than average</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h4>⭐ R4/R5 Rank Boost</h4>
+                        <div class="form-group">
+                            <label for="r4r5-rank-boost">Bonus Points:</label>
+                            <input type="number" id="r4r5-rank-boost" min="0" required>
+                            <span class="help-text">Bonus points given to R4 and R5 members</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h4>🎯 First Time Conductor Boost</h4>
+                        <div class="form-group">
+                            <label for="first-time-boost">Bonus Points:</label>
+                            <input type="number" id="first-time-boost" min="0" required>
+                            <span class="help-text">Bonus points for members who have never been conductor before (only if they have some points)</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h4>📝 Weekly Schedule Message Template</h4>
+                        <div class="form-group">
+                            <label for="schedule-message-template">Message Template:</label>
+                            <textarea id="schedule-message-template" rows="8" required></textarea>
+                            <span class="help-text">
+                                Template for in-game copy message. Use:<br>
+                                <code>{WEEK}</code> = Week start date<br>
+                                <code>{SCHEDULES}</code> = Daily schedules<br>
+                                <code>{NEXT_3}</code> = Next 3 candidates
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h4>📨 Daily Message Template</h4>
+                        <div class="form-group">
+                            <label for="daily-message-template">Message Template:</label>
+                            <textarea id="daily-message-template" rows="10" required></textarea>
+                            <span class="help-text">
+                                Template for daily conductor reminder. Use:<br>
+                                <code>{DATE}</code> = Date (e.g., Monday, Jan 2, 2006)<br>
+                                <code>{CONDUCTOR_NAME}</code> = Conductor's name<br>
+                                <code>{CONDUCTOR_RANK}</code> = Conductor's rank<br>
+                                <code>{BACKUP_NAME}</code> = Backup's name<br>
+                                <code>{BACKUP_RANK}</code> = Backup's rank
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="button-group">
+                        <button type="submit" class="primary-btn">💾 Save Settings</button>
+                        <button type="button" id="reset-btn" class="secondary-btn">🔄 Reset to Defaults</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="info-section">
+                <h3>ℹ️ How the Ranking System Works</h3>
+                <div class="info-card">
+                    <p><strong>Auto-Schedule Selection:</strong> When you click the Auto button for a day, the system calculates a score for each eligible member:</p>
+                    <ul>
+                        <li><strong>Base Score:</strong> Starts at 0</li>
+                        <li><strong>Awards:</strong> Adds points based on last week's awards (1st/2nd/3rd place)</li>
+                        <li><strong>Recommendations:</strong> Adds points for each active recommendation</li>
+                        <li><strong>Recent Conductor:</strong> Subtracts points if they were conductor recently (within penalty duration)</li>
+                        <li><strong>Above Average:</strong> Subtracts points if they've been conductor more times than the average member</li>
+                        <li><strong>Used This Week:</strong> Members already scheduled this week get -500 penalty</li>
+                    </ul>
+                    <p><strong>Selection Priority:</strong> The member with the highest score who hasn't been used this week is selected as conductor.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="settings.js"></script>
+</body>
+</html>

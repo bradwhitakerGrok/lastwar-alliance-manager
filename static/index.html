@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Last War: Survival - Alliance Manager</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 Last War: Survival</h1>
+            <h2>Alliance Member Manager</h2>
+            <div class="user-info">
+                <span id="username-display"></span>
+                <button id="logout-btn" class="logout-btn">Logout</button>
+            </div>
+        </header>
+
+        <nav class="nav-menu">
+            <a href="/" class="nav-link active">👥 Members</a>
+            <a href="/train.html" class="nav-link">🚂 Train Schedule</a>
+            <a href="/awards.html" class="nav-link">🏆 Awards</a>
+            <a href="/recommendations.html" class="nav-link">⭐ Recommendations</a>
+            <a href="/rankings.html" class="nav-link">📊 Rankings</a>
+            <a href="/settings.html" class="nav-link">⚙️ Settings</a>
+            <a href="/profile.html" class="nav-link">👤 Profile</a>
+        </nav>
+
+        <main>
+            <section class="form-section">
+                <h3 id="form-title">Add New Member</h3>
+                <form id="member-form">
+                    <input type="hidden" id="member-id">
+                    <div class="form-group">
+                        <label for="member-name">Member Name:</label>
+                        <input type="text" id="member-name" required placeholder="Enter member name">
+                    </div>
+                    <div class="form-group">
+                        <label for="member-rank">Rank:</label>
+                        <select id="member-rank" required>
+                            <option value="">Select Rank</option>
+                            <option value="R5">R5</option>
+                            <option value="R4">R4</option>
+                            <option value="R3">R3</option>
+                            <option value="R2">R2</option>
+                            <option value="R1">R1</option>
+                        </select>
+                    </div>
+                    <div class="button-group">
+                        <button type="submit" id="submit-btn">Add Member</button>
+                        <button type="button" id="cancel-btn" style="display: none;">Cancel</button>
+                    </div>
+                </form>
+
+                <div class="csv-import-section">
+                    <h4>📥 Import from CSV</h4>
+                    <p class="csv-help">Upload a CSV file with format: <code>member,rank</code> (no headers)</p>
+                    <div class="csv-upload">
+                        <input type="file" id="csv-file" accept=".csv" />
+                        <button type="button" id="import-btn" class="import-btn">Import CSV</button>
+                    </div>
+                    <div id="import-result" class="import-result" style="display: none;"></div>
+                </div>
+            </section>
+
+            <section class="members-section">
+                <h3>Alliance Members</h3>
+                <div class="search-box">
+                    <input type="text" id="search-input" placeholder="🔍 Search by name or rank..." />
+                    <button type="button" id="clear-search" class="clear-search" style="display: none;">✕</button>
+                </div>
+                <div id="members-list" class="members-list">
+                    <p class="loading">Loading members...</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+your-domain.com {
+    # Reverse proxy to Go application
+    reverse_proxy localhost:8080
+    
+    # Enable gzip compression
+    encode gzip
+    
+    # Security headers
+    header {
+        # Prevent MIME type sniffing
+        X-Content-Type-Options "nosniff"
+        
+        # Prevent clickjacking
+        X-Frame-Options "DENY"
+        
+        # XSS protection (legacy browsers)
+        X-XSS-Protection "1; mode=block"
+        
+        # Referrer policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+        
+        # HSTS - Force HTTPS for 1 year
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        
+        # Content Security Policy (adjust as needed)
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none';"
+        
+        # Remove server information
+        -Server
+    }
+    
+    # Access logging
+    log {
+        output file /var/log/caddy/lastwar-access.log {
+            roll_size 100mb
+            roll_keep 10
+            roll_keep_for 720h
+        }
+        format json
+    }
+    
+    # Error handling
+    handle_errors {
+        @404 {
+            expression {http.error.status_code} == 404
+        }
+        rewrite @404 /index.html
+        file_server
+    }
+}
+
+# Redirect www to non-www (optional)
+www.your-domain.com {
+    redir https://your-domain.com{uri} permanent
+}
