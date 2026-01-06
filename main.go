@@ -126,6 +126,14 @@ type AwardDetail struct {
 	Points    int    `json:"points"`
 }
 
+type StormAssignment struct {
+	ID         int    `json:"id"`
+	TaskForce  string `json:"task_force"`
+	BuildingID string `json:"building_id"`
+	MemberID   int    `json:"member_id"`
+	Position   int    `json:"position"`
+}
+
 var db *sql.DB
 var store *sessions.CookieStore
 
@@ -569,6 +577,22 @@ func initDB() error {
 	);`
 
 	_, err = db.Exec(createSettingsSQL)
+	if err != nil {
+		return err
+	}
+
+	// Create storm assignments table
+	createStormAssignmentsSQL := `CREATE TABLE IF NOT EXISTS storm_assignments (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		task_force TEXT NOT NULL CHECK (task_force IN ('A', 'B')),
+		building_id TEXT NOT NULL,
+		member_id INTEGER NOT NULL,
+		position INTEGER NOT NULL CHECK (position BETWEEN 1 AND 4),
+		FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+		UNIQUE(task_force, building_id, position)
+	);`
+
+	_, err = db.Exec(createStormAssignmentsSQL)
 	if err != nil {
 		return err
 	}
@@ -2283,6 +2307,154 @@ func generateDailyMessage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// R4/R5/Admin middleware - checks if user has R4, R5 rank or is admin
+func r4r5Middleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		session, _ := store.Get(r, "session-name")
+		memberID, ok := session.Values["member_id"].(int)
+		if !ok {
+			http.Error(w, "Not authenticated", http.StatusUnauthorized)
+			return
+		}
+
+		// Check if user is admin
+		var isAdmin bool
+		err := db.QueryRow("SELECT is_admin FROM users WHERE member_id = ?", memberID).Scan(&isAdmin)
+		if err == nil && isAdmin {
+			next(w, r)
+			return
+		}
+
+		// Get member rank
+		var rank string
+		err = db.QueryRow("SELECT rank FROM members WHERE id = ?", memberID).Scan(&rank)
+		if err != nil {
+			http.Error(w, "Member not found", http.StatusNotFound)
+			return
+		}
+
+		if rank != "R4" && rank != "R5" {
+			http.Error(w, "Access denied - R4, R5 rank or admin privileges required", http.StatusForbidden)
+			return
+		}
+
+		next(w, r)
+	}
+}
+
+// Get storm assignments
+func getStormAssignments(w http.ResponseWriter, r *http.Request) {
+	taskForce := r.URL.Query().Get("task_force")
+	if taskForce == "" {
+		taskForce = "A"
+	}
+
+	rows, err := db.Query(`
+		SELECT id, task_force, building_id, member_id, position
+		FROM storm_assignments
+		WHERE task_force = ?
+		ORDER BY building_id, position
+	`, taskForce)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	assignments := []StormAssignment{}
+	for rows.Next() {
+		var a StormAssignment
+		if err := rows.Scan(&a.ID, &a.TaskForce, &a.BuildingID, &a.MemberID, &a.Position); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		assignments = append(assignments, a)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(assignments)
+}
+
+// Save storm assignments
+func saveStormAssignments(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		TaskForce   string `json:"task_force"`
+		Assignments []struct {
+			BuildingID string `json:"building_id"`
+			MemberID   int    `json:"member_id"`
+			Position   int    `json:"position"`
+		} `json:"assignments"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Validate task force
+	if request.TaskForce != "A" && request.TaskForce != "B" {
+		http.Error(w, "Invalid task force - must be A or B", http.StatusBadRequest)
+		return
+	}
+
+	// Start transaction
+	tx, err := db.Begin()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	// Delete existing assignments for this task force
+	_, err = tx.Exec("DELETE FROM storm_assignments WHERE task_force = ?", request.TaskForce)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Insert new assignments
+	for _, assignment := range request.Assignments {
+		_, err = tx.Exec(`
+			INSERT INTO storm_assignments (task_force, building_id, member_id, position)
+			VALUES (?, ?, ?, ?)
+		`, request.TaskForce, assignment.BuildingID, assignment.MemberID, assignment.Position)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Assignments saved successfully",
+	})
+}
+
+// Delete storm assignments for a task force
+func deleteStormAssignments(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	taskForce := vars["taskForce"]
+
+	if taskForce != "A" && taskForce != "B" {
+		http.Error(w, "Invalid task force - must be A or B", http.StatusBadRequest)
+		return
+	}
+
+	_, err := db.Exec("DELETE FROM storm_assignments WHERE task_force = ?", taskForce)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func main() {
 	// Initialize session store first
 	initSessionStore()
@@ -2334,6 +2506,11 @@ func main() {
 
 	// Rankings routes (protected)
 	router.HandleFunc("/api/rankings", authMiddleware(getMemberRankings)).Methods("GET")
+
+	// Storm assignments routes (protected, R4/R5 only)
+	router.HandleFunc("/api/storm-assignments", authMiddleware(getStormAssignments)).Methods("GET")
+	router.HandleFunc("/api/storm-assignments", authMiddleware(r4r5Middleware(saveStormAssignments))).Methods("POST")
+	router.HandleFunc("/api/storm-assignments/{taskForce}", authMiddleware(r4r5Middleware(deleteStormAssignments))).Methods("DELETE")
 
 	// Serve static files
 	router.PathPrefix("/").Handler(http.FileServer(http.Dir("./static")))

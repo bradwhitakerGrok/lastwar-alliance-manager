@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desert Storm Strategy - Last War Alliance Manager</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">🏜️ Desert Storm Strategy</div>
+        <div class="nav-user">
+            <span id="username-display">Loading...</span>
+            <button id="logout-btn" class="btn btn-secondary">Logout</button>
+        </div>
+    </nav>
+
+    <div class="nav-tabs">
+        <a href="index.html">Members</a>
+        <a href="rankings.html">Rankings</a>
+        <a href="train.html">Training Schedule</a>
+        <a href="awards.html">Awards</a>
+        <a href="recommendations.html">Recommendations</a>
+        <a href="storm.html" class="active">Desert Storm</a>
+        <a href="settings.html">Settings</a>
+        <a href="profile.html">Profile</a>
+    </div>
+
+    <div class="container">
+        <div class="page-header">
+            <h2>🏜️ Desert Storm Strategy & Assignments</h2>
+            <p>Assign members to buildings and generate battle strategy mail</p>
+        </div>
+
+        <!-- Task Force Selector -->
+        <div class="card">
+            <h3>Battle Configuration</h3>
+            <div class="form-group">
+                <label>Task Force:</label>
+                <label style="margin-left: 20px;">
+                    <input type="radio" name="taskForce" value="A" checked>
+                    Task Force A
+                </label>
+                <label style="margin-left: 20px;">
+                    <input type="radio" name="taskForce" value="B">
+                    Task Force B
+                </label>
+            </div>
+            <div class="form-group">
+                <label for="battleTime">Battle Time:</label>
+                <select id="battleTime" style="max-width: 400px;">
+                    <option value="">-- Select Battle Time --</option>
+                    <option value="18:00">18:00-18:30 ST (20:00 UK / 21:00 CET)</option>
+                    <option value="09:00">09:00-09:30 ST (11:00 UK / 12:00 CET)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Strategy Overview -->
+        <div class="card storm-strategy">
+            <h3>📋 Battle Strategy Overview</h3>
+            <div class="strategy-phases">
+                <div class="phase-card">
+                    <h4>⏱️ Stage 1 (Start - 10 min)</h4>
+                    <ul>
+                        <li><strong>Priority 1:</strong> Field Hospitals (all 4 - CRITICAL!)</li>
+                        <li><strong>Priority 2:</strong> Oil Refineries I & II (100/s total)</li>
+                        <li><strong>Priority 3:</strong> Science Hub (faster teleport)</li>
+                        <li><strong>Priority 4:</strong> Info Center (+10% all points)</li>
+                    </ul>
+                </div>
+                <div class="phase-card">
+                    <h4>⏱️ Stage 2 (10 - 30 min)</h4>
+                    <ul>
+                        <li><strong>Priority 1:</strong> Nuclear Silo (80/s - CRITICAL!)</li>
+                        <li><strong>Priority 2:</strong> Defend Nuclear Silo at all costs</li>
+                        <li><strong>Priority 3:</strong> Maintain Field Hospitals for healing</li>
+                        <li><strong>Optional:</strong> Arsenal/Mercenary Factory (buffs/debuffs)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Building Assignments -->
+        <div class="card">
+            <h3>🏗️ Building Assignments</h3>
+            <p class="help-text">Assign up to 4 members per building. These are your designated capture teams.</p>
+            
+            <div id="buildings-grid" class="storm-buildings-grid">
+                <!-- Buildings will be rendered here -->
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="actions-bar">
+            <button id="generate-mail-btn" class="btn btn-success">📧 Generate Battle Mail</button>
+            <button id="clear-assignments-btn" class="btn btn-danger">🗑️ Clear All</button>
+        </div>
+
+        <!-- Generated Mail Output -->
+        <div id="mail-output" class="card" style="display: none;">
+            <h3>📧 Generated Battle Mail</h3>
+            <div class="mail-header">
+                <button id="copy-mail-btn" class="btn btn-secondary">📋 Copy to Clipboard</button>
+            </div>
+            <div id="mail-content" class="mail-content"></div>
+        </div>
+    </div>
+
+    <script src="storm.js"></script>
+</body>
+</html>
