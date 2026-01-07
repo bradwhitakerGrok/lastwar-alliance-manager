@@ -3,38 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Desert Storm Strategy - Last War Alliance Manager</title>
+    <title>Desert Storm Strategy - Last War Alliance</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-brand">🏜️ Desert Storm Strategy</div>
-        <div class="nav-user">
-            <span id="username-display">Loading...</span>
-            <button id="logout-btn" class="btn btn-secondary">Logout</button>
-        </div>
-    </nav>
-
-    <div class="nav-tabs">
-        <a href="index.html">Members</a>
-        <a href="rankings.html">Rankings</a>
-        <a href="train.html">Training Schedule</a>
-        <a href="awards.html">Awards</a>
-        <a href="recommendations.html">Recommendations</a>
-        <a href="storm.html" class="active">Desert Storm</a>
-        <a href="settings.html">Settings</a>
-        <a href="profile.html">Profile</a>
-    </div>
-
     <div class="container">
-        <div class="page-header">
-            <h2>🏜️ Desert Storm Strategy & Assignments</h2>
-            <p>Assign members to buildings and generate battle strategy mail</p>
-        </div>
+        <header>
+            <h1>🏜️ Last War: Survival</h1>
+            <h2>Desert Storm Strategy</h2>
+            <div class="user-info">
+                <span id="username-display"></span>
+                <button id="logout-btn" class="logout-btn">Logout</button>
+            </div>
+        </header>
 
-        <!-- Task Force Selector -->
-        <div class="card">
-            <h3>Battle Configuration</h3>
+        <nav class="nav-menu">
+            <a href="/" class="nav-link">👥 Members</a>
+            <a href="/train.html" class="nav-link">🚂 Train Schedule</a>
+            <a href="/awards.html" class="nav-link">🏆 Awards</a>
+            <a href="/recommendations.html" class="nav-link">⭐ Recommendations</a>
+            <a href="/rankings.html" class="nav-link">📊 Rankings</a>
+            <a href="/storm.html" class="nav-link active">🏜️ Desert Storm</a>
+            <a href="/settings.html" class="nav-link">⚙️ Settings</a>
+            <a href="/profile.html" class="nav-link">👤 Profile</a>
+        </nav>
+
+        <main>
+
+            <!-- Task Force Selector -->
+            <section class="form-section">
+                <h3>⚙️ Battle Configuration</h3>
             <div class="form-group">
                 <label>Task Force:</label>
                 <label style="margin-left: 20px;">
@@ -54,11 +52,11 @@
                     <option value="09:00">09:00-09:30 ST (11:00 UK / 12:00 CET)</option>
                 </select>
             </div>
-        </div>
+            </section>
 
-        <!-- Strategy Overview -->
-        <div class="card storm-strategy">
-            <h3>📋 Battle Strategy Overview</h3>
+            <!-- Strategy Overview -->
+            <section class="form-section storm-strategy">
+                <h3>📋 Battle Strategy Overview</h3>
             <div class="strategy-phases">
                 <div class="phase-card">
                     <h4>⏱️ Stage 1 (Start - 10 min)</h4>
@@ -79,32 +77,33 @@
                     </ul>
                 </div>
             </div>
-        </div>
+            </section>
 
-        <!-- Building Assignments -->
-        <div class="card">
-            <h3>🏗️ Building Assignments</h3>
-            <p class="help-text">Assign up to 4 members per building. These are your designated capture teams.</p>
+            <!-- Building Assignments -->
+            <section class="form-section">
+                <h3>🏗️ Building Assignments</h3>
+                <p class="help-text">Assign up to 4 members per building. These are your designated capture teams.</p>
             
-            <div id="buildings-grid" class="storm-buildings-grid">
-                <!-- Buildings will be rendered here -->
-            </div>
-        </div>
+                <div id="buildings-grid" class="storm-buildings-grid">
+                    <!-- Buildings will be rendered here -->
+                </div>
 
-        <!-- Actions -->
-        <div class="actions-bar">
-            <button id="generate-mail-btn" class="btn btn-success">📧 Generate Battle Mail</button>
-            <button id="clear-assignments-btn" class="btn btn-danger">🗑️ Clear All</button>
-        </div>
+                <!-- Actions -->
+                <div class="button-group">
+                    <button id="generate-mail-btn" class="primary-btn">📧 Generate Battle Mail</button>
+                    <button id="clear-assignments-btn" class="clear-btn">🗑️ Clear All</button>
+                </div>
+            </section>
 
-        <!-- Generated Mail Output -->
-        <div id="mail-output" class="card" style="display: none;">
-            <h3>📧 Generated Battle Mail</h3>
-            <div class="mail-header">
-                <button id="copy-mail-btn" class="btn btn-secondary">📋 Copy to Clipboard</button>
-            </div>
-            <div id="mail-content" class="mail-content"></div>
-        </div>
+            <!-- Generated Mail Output -->
+            <section id="mail-output" class="form-section" style="display: none;">
+                <h3>📧 Generated Battle Mail</h3>
+                <div class="mail-header">
+                    <button id="copy-mail-btn" class="copy-btn">📋 Copy to Clipboard</button>
+                </div>
+                <div id="mail-content" class="mail-content"></div>
+            </section>
+        </main>
     </div>
 
     <script src="storm.js"></script>
