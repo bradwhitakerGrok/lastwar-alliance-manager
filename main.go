@@ -1,23 +1,16 @@
 package main
 
 import (
-	"bytes"
 	"crypto/rand"
 	"database/sql"
-	"encoding/base64"
 	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"image"
-	_ "image/jpeg"
-	_ "image/png"
-	"io"
 	"log"
 	"math/big"
 	"net/http"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -143,30 +136,128 @@ type StormAssignment struct {
 }
 
 type DetectedMember struct {
-	Name        string `json:"name"`
-	Rank        string `json:"rank"`
-	IsNew       bool   `json:"is_new"`
-	RankChanged bool   `json:"rank_changed"`
-	OldRank     string `json:"old_rank,omitempty"`
+	Name         string   `json:"name"`
+	Rank         string   `json:"rank"`
+	IsNew        bool     `json:"is_new"`
+	RankChanged  bool     `json:"rank_changed"`
+	OldRank      string   `json:"old_rank,omitempty"`
+	SimilarMatch []string `json:"similar_match,omitempty"`
 }
 
-type UploadResult struct {
-	ProcessedCount  int              `json:"processed_count"`
-	DetectedMembers []DetectedMember `json:"detected_members"`
+type RenameInfo struct {
+	OldName string `json:"old_name"`
+	NewName string `json:"new_name"`
+}
+
+type MemberToRemove struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+	Rank string `json:"rank"`
 }
 
 type ConfirmRequest struct {
-	Members []DetectedMember `json:"members"`
+	Members         []DetectedMember `json:"members"`
+	RemoveMemberIDs []int            `json:"remove_member_ids"`
+	Renames         []RenameInfo     `json:"renames"`
 }
 
 type ConfirmResult struct {
 	Added     int `json:"added"`
 	Updated   int `json:"updated"`
 	Unchanged int `json:"unchanged"`
+	Removed   int `json:"removed"`
 }
 
 var db *sql.DB
 var store *sessions.CookieStore
+
+// Calculate Levenshtein distance between two strings
+func levenshteinDistance(s1, s2 string) int {
+	s1Lower := strings.ToLower(s1)
+	s2Lower := strings.ToLower(s2)
+	len1 := len(s1Lower)
+	len2 := len(s2Lower)
+
+	if len1 == 0 {
+		return len2
+	}
+	if len2 == 0 {
+		return len1
+	}
+
+	matrix := make([][]int, len1+1)
+	for i := range matrix {
+		matrix[i] = make([]int, len2+1)
+		matrix[i][0] = i
+	}
+	for j := 0; j <= len2; j++ {
+		matrix[0][j] = j
+	}
+
+	for i := 1; i <= len1; i++ {
+		for j := 1; j <= len2; j++ {
+			cost := 0
+			if s1Lower[i-1] != s2Lower[j-1] {
+				cost = 1
+			}
+			matrix[i][j] = min(matrix[i-1][j]+1, matrix[i][j-1]+1, matrix[i-1][j-1]+cost)
+		}
+	}
+	return matrix[len1][len2]
+}
+
+func min(nums ...int) int {
+	if len(nums) == 0 {
+		return 0
+	}
+	minNum := nums[0]
+	for _, n := range nums[1:] {
+		if n < minNum {
+			minNum = n
+		}
+	}
+	return minNum
+}
+
+// Check if two names are similar (case-insensitive)
+func areSimilar(name1, name2 string) bool {
+	if strings.EqualFold(name1, name2) {
+		return false // Exact match, not similar but same
+	}
+
+	// Calculate similarity (case-insensitive)
+	lower1 := strings.ToLower(name1)
+	lower2 := strings.ToLower(name2)
+	dist := levenshteinDistance(lower1, lower2)
+	maxLen := max(len(lower1), len(lower2))
+	similarity := 1.0 - float64(dist)/float64(maxLen)
+
+	// Consider similar if:
+	// 1. Similarity >= 70%
+	// 2. Distance <= 3 characters
+	// 3. One name contains the other (for abbreviations like IRA vs IRAQ Army)
+	if similarity >= 0.7 || dist <= 3 {
+		return true
+	}
+
+	// Check if one name contains significant part of another
+	name1Lower := strings.ToLower(name1)
+	name2Lower := strings.ToLower(name2)
+	if strings.Contains(name1Lower, name2Lower) || strings.Contains(name2Lower, name1Lower) {
+		if len(name1) >= 3 && len(name2) >= 3 {
+			return true
+		}
+	}
+
+	return false
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
 
 // initSessionStore initializes the session store with secure settings
 func initSessionStore() {
@@ -1582,8 +1673,8 @@ func importCSV(w http.ResponseWriter, r *http.Request) {
 
 	// Parse CSV
 	reader := csv.NewReader(file)
-	reader.FieldsPerRecord = 2
 	reader.TrimLeadingSpace = true
+	reader.FieldsPerRecord = -1 // Allow variable number of fields
 
 	records, err := reader.ReadAll()
 	if err != nil {
@@ -1596,22 +1687,42 @@ func importCSV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validRanks := map[string]bool{"R1": true, "R2": true, "R3": true, "R4": true, "R5": true}
-	imported := 0
-	skipped := 0
-	errors := []string{}
-
-	// Begin transaction
-	tx, err := db.Begin()
-	if err != nil {
-		http.Error(w, "Database error", http.StatusInternalServerError)
-		return
+	// Skip header row if it looks like a header
+	startIndex := 0
+	if len(records) > 0 {
+		firstRow := records[0]
+		if len(firstRow) > 0 {
+			firstCell := strings.ToLower(strings.TrimSpace(firstRow[0]))
+			// Check if first row is a header
+			if firstCell == "username" || firstCell == "name" || firstCell == "member" {
+				startIndex = 1
+			}
+		}
 	}
 
-	for i, record := range records {
-		if len(record) != 2 {
-			errors = append(errors, "Line "+strconv.Itoa(i+1)+": Invalid format")
-			skipped++
+	validRanks := map[string]bool{"R1": true, "R2": true, "R3": true, "R4": true, "R5": true}
+	detectedMembers := []DetectedMember{}
+	errors := []string{}
+
+	// Get existing members
+	existingMembers := make(map[string]Member)
+	rows, err := db.Query("SELECT id, name, rank FROM members")
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var m Member
+			rows.Scan(&m.ID, &m.Name, &m.Rank)
+			existingMembers[m.Name] = m
+		}
+	}
+
+	for i := startIndex; i < len(records); i++ {
+		record := records[i]
+
+		// New format: Username,Rank,Power,Level,Status,Last_Active
+		// We only care about Username (index 0) and Rank (index 1)
+		if len(record) < 2 {
+			errors = append(errors, fmt.Sprintf("Line %d: Insufficient columns (need at least Username and Rank)", i+1))
 			continue
 		}
 
@@ -1619,57 +1730,74 @@ func importCSV(w http.ResponseWriter, r *http.Request) {
 		rank := strings.TrimSpace(record[1])
 
 		if name == "" {
-			errors = append(errors, "Line "+strconv.Itoa(i+1)+": Empty name")
-			skipped++
+			errors = append(errors, fmt.Sprintf("Line %d: Empty username", i+1))
 			continue
 		}
 
 		if !validRanks[rank] {
-			errors = append(errors, "Line "+strconv.Itoa(i+1)+": Invalid rank '"+rank+"' (must be R1-R5)")
-			skipped++
+			errors = append(errors, fmt.Sprintf("Line %d: Invalid rank '%s' (must be R1-R5)", i+1, rank))
 			continue
 		}
 
-		// Check for duplicate
-		var exists int
-		err := tx.QueryRow("SELECT COUNT(*) FROM members WHERE name = ?", name).Scan(&exists)
-		if err != nil {
-			tx.Rollback()
-			http.Error(w, "Database error", http.StatusInternalServerError)
-			return
+		detected := DetectedMember{
+			Name: name,
+			Rank: rank,
 		}
 
-		if exists > 0 {
-			errors = append(errors, "Line "+strconv.Itoa(i+1)+": Member '"+name+"' already exists")
-			skipped++
-			continue
+		// Check if member exists
+		if existing, found := existingMembers[name]; found {
+			// Existing member - check for rank change
+			if existing.Rank != rank {
+				detected.RankChanged = true
+				detected.OldRank = existing.Rank
+			}
+		} else {
+			// New member - check for similar names in existing members
+			detected.IsNew = true
+			similarNames := []string{}
+			for existingName := range existingMembers {
+				if areSimilar(name, existingName) {
+					similarNames = append(similarNames, existingName)
+				}
+			}
+			if len(similarNames) > 0 {
+				detected.SimilarMatch = similarNames
+			}
 		}
 
-		// Insert member
-		_, err = tx.Exec("INSERT INTO members (name, rank) VALUES (?, ?)", name, rank)
-		if err != nil {
-			tx.Rollback()
-			http.Error(w, "Failed to insert member", http.StatusInternalServerError)
-			return
-		}
-
-		imported++
+		detectedMembers = append(detectedMembers, detected)
 	}
 
-	// Commit transaction
-	err = tx.Commit()
-	if err != nil {
-		http.Error(w, "Failed to save changes", http.StatusInternalServerError)
-		return
+	// Find members that would be removed (in database but not in CSV)
+	membersToRemove := []MemberToRemove{}
+	csvNames := make(map[string]bool)
+	for _, m := range detectedMembers {
+		csvNames[m.Name] = true
+	}
+	for _, existing := range existingMembers {
+		if !csvNames[existing.Name] {
+			membersToRemove = append(membersToRemove, MemberToRemove{
+				ID:   existing.ID,
+				Name: existing.Name,
+				Rank: existing.Rank,
+			})
+		}
+	}
+
+	// Return preview data
+	result := map[string]interface{}{
+		"detected_members":  detectedMembers,
+		"members_to_remove": membersToRemove,
+		"errors":            errors,
+		"total_rows":        len(records) - startIndex,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"imported": imported,
-		"skipped":  skipped,
-		"errors":   errors,
-	})
+	json.NewEncoder(w).Encode(result)
 }
+
+// Confirm CSV import (reuses the same confirmMemberUpdates function)
+// The route will be /api/members/import/confirm
 
 // Get awards for a specific week or all weeks
 func getAwards(w http.ResponseWriter, r *http.Request) {
@@ -2486,169 +2614,6 @@ func deleteStormAssignments(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// Upload and process screenshots
-func uploadScreenshots(w http.ResponseWriter, r *http.Request) {
-	// Parse multipart form with 50MB max
-	err := r.ParseMultipartForm(50 << 20) // 50MB
-	if err != nil {
-		http.Error(w, "Unable to parse form: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	files := r.MultipartForm.File["screenshots"]
-	if len(files) == 0 {
-		http.Error(w, "No files uploaded", http.StatusBadRequest)
-		return
-	}
-
-	allDetectedMembers := make(map[string]DetectedMember)
-
-	// Process each uploaded file
-	for _, fileHeader := range files {
-		file, err := fileHeader.Open()
-		if err != nil {
-			log.Printf("Error opening file %s: %v", fileHeader.Filename, err)
-			continue
-		}
-		defer file.Close()
-
-		// Read file content
-		fileBytes, err := io.ReadAll(file)
-		if err != nil {
-			log.Printf("Error reading file %s: %v", fileHeader.Filename, err)
-			continue
-		}
-
-		// Process image and extract members
-		members, err := processScreenshot(fileBytes)
-		if err != nil {
-			log.Printf("Error processing screenshot %s: %v", fileHeader.Filename, err)
-			continue
-		}
-
-		// Merge detected members
-		for _, member := range members {
-			allDetectedMembers[member.Name] = member
-		}
-	}
-
-	// Get existing members from database
-	existingMembers := make(map[string]Member)
-	rows, err := db.Query("SELECT id, name, rank FROM members")
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var m Member
-			rows.Scan(&m.ID, &m.Name, &m.Rank)
-			existingMembers[m.Name] = m
-		}
-	}
-
-	// Check for new members and rank changes
-	detectedList := make([]DetectedMember, 0, len(allDetectedMembers))
-	for _, detected := range allDetectedMembers {
-		if existing, found := existingMembers[detected.Name]; found {
-			// Existing member - check for rank change
-			if existing.Rank != detected.Rank {
-				detected.RankChanged = true
-				detected.OldRank = existing.Rank
-			}
-		} else {
-			// New member
-			detected.IsNew = true
-		}
-		detectedList = append(detectedList, detected)
-	}
-
-	result := UploadResult{
-		ProcessedCount:  len(files),
-		DetectedMembers: detectedList,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
-}
-
-// Process screenshot and extract member information
-func processScreenshot(imageData []byte) ([]DetectedMember, error) {
-	// Decode image to verify it's valid
-	_, _, err := image.Decode(bytes.NewReader(imageData))
-	if err != nil {
-		return nil, fmt.Errorf("invalid image: %v", err)
-	}
-
-	// For now, we'll use a simple text extraction approach
-	// In production, you would integrate with an OCR library like gosseract
-	// Since OCR setup is complex, I'll implement a mock version that you can replace
-
-	// Convert image to base64 for potential future OCR service integration
-	_ = base64.StdEncoding.EncodeToString(imageData)
-
-	// Mock OCR result - in production, replace this with actual OCR
-	// This simulates extracting text from the screenshot
-	mockText := simulateOCR(imageData)
-
-	// Parse the extracted text to find members and ranks
-	members := parseMembers(mockText)
-
-	return members, nil
-}
-
-// Simulate OCR - replace this with actual OCR library integration
-func simulateOCR(imageData []byte) string {
-	// In production, use gosseract or similar:
-	// client := gosseract.NewClient()
-	// defer client.Close()
-	// client.SetImageFromBytes(imageData)
-	// text, _ := client.Text()
-	// return text
-
-	// For now, return empty string to indicate OCR not implemented
-	// Users will need to use the manual CSV import instead
-	return ""
-}
-
-// Parse extracted text to find member names and ranks
-func parseMembers(text string) []DetectedMember {
-	members := []DetectedMember{}
-
-	// Split into lines
-	lines := strings.Split(text, "\n")
-
-	// Regex patterns to match member names and ranks
-	rankPattern := regexp.MustCompile(`\b(R5|R4|R3|R2|R1)\b`)
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		// Look for rank in the line
-		rankMatches := rankPattern.FindStringSubmatch(line)
-		if len(rankMatches) > 0 {
-			rank := rankMatches[1]
-
-			// Extract member name (text before the rank)
-			namePart := rankPattern.ReplaceAllString(line, "")
-			namePart = strings.TrimSpace(namePart)
-
-			// Clean up common OCR artifacts
-			namePart = strings.ReplaceAll(namePart, "  ", " ")
-			namePart = strings.Trim(namePart, " \t\r\n.,;:")
-
-			if namePart != "" && len(namePart) > 1 {
-				members = append(members, DetectedMember{
-					Name: namePart,
-					Rank: rank,
-				})
-			}
-		}
-	}
-
-	return members
-}
-
 // Confirm and update members in database
 func confirmMemberUpdates(w http.ResponseWriter, r *http.Request) {
 	var request ConfirmRequest
@@ -2659,6 +2624,22 @@ func confirmMemberUpdates(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result := ConfirmResult{}
+
+	// Process renames first
+	for _, rename := range request.Renames {
+		_, err := db.Exec("UPDATE members SET name = ? WHERE name = ?", rename.NewName, rename.OldName)
+		if err != nil {
+			log.Printf("Error renaming member %s to %s: %v", rename.OldName, rename.NewName, err)
+			continue
+		}
+		log.Printf("Renamed member %s to %s", rename.OldName, rename.NewName)
+	}
+
+	// Create a set of member names from the request
+	memberNames := make(map[string]bool)
+	for _, member := range request.Members {
+		memberNames[member.Name] = true
+	}
 
 	for _, member := range request.Members {
 		// Check if member exists
@@ -2687,6 +2668,19 @@ func confirmMemberUpdates(w http.ResponseWriter, r *http.Request) {
 				result.Unchanged++
 			}
 		}
+	}
+
+	// Remove specific members by ID if requested
+	if len(request.RemoveMemberIDs) > 0 {
+		for _, id := range request.RemoveMemberIDs {
+			_, err := db.Exec("DELETE FROM members WHERE id = ?", id)
+			if err != nil {
+				log.Printf("Error removing member with id %d: %v", id, err)
+				continue
+			}
+			result.Removed++
+		}
+		log.Printf("Removed %d selected members", result.Removed)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -2718,6 +2712,7 @@ func main() {
 	router.HandleFunc("/api/members/{id}", authMiddleware(rankManagementMiddleware(updateMember))).Methods("PUT")
 	router.HandleFunc("/api/members/{id}", authMiddleware(rankManagementMiddleware(deleteMember))).Methods("DELETE")
 	router.HandleFunc("/api/members/import", authMiddleware(rankManagementMiddleware(importCSV))).Methods("POST")
+	router.HandleFunc("/api/members/import/confirm", authMiddleware(rankManagementMiddleware(confirmMemberUpdates))).Methods("POST")
 
 	// Train schedule routes (protected)
 	router.HandleFunc("/api/train-schedules", authMiddleware(getTrainSchedules)).Methods("GET")
@@ -2749,10 +2744,6 @@ func main() {
 	router.HandleFunc("/api/storm-assignments", authMiddleware(getStormAssignments)).Methods("GET")
 	router.HandleFunc("/api/storm-assignments", authMiddleware(r4r5Middleware(saveStormAssignments))).Methods("POST")
 	router.HandleFunc("/api/storm-assignments/{taskForce}", authMiddleware(r4r5Middleware(deleteStormAssignments))).Methods("DELETE")
-
-	// Upload screenshots routes (protected, R4/R5 only)
-	router.HandleFunc("/api/upload-screenshots", authMiddleware(r4r5Middleware(uploadScreenshots))).Methods("POST")
-	router.HandleFunc("/api/confirm-member-updates", authMiddleware(r4r5Middleware(confirmMemberUpdates))).Methods("POST")
 
 	// Serve static files
 	router.PathPrefix("/").Handler(http.FileServer(http.Dir("./static")))

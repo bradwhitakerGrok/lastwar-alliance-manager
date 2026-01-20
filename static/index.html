@@ -24,7 +24,6 @@
             <a href="/recommendations.html" class="nav-link">⭐ Recommendations</a>
             <a href="/rankings.html" class="nav-link">📊 Rankings</a>
             <a href="/storm.html" class="nav-link">🏜️ Desert Storm</a>
-            <a href="/upload.html" class="nav-link">📸 Upload</a>
             <a href="/settings.html" class="nav-link">⚙️ Settings</a>
             <a href="/profile.html" class="nav-link">👤 Profile</a>
         </nav>
@@ -57,14 +56,36 @@
 
                 <div class="csv-import-section">
                     <h4>📥 Import from CSV</h4>
-                    <p class="csv-help">Upload a CSV file with format: <code>member,rank</code> (no headers)</p>
+                    <p class="csv-help">Upload a CSV file with format: <code>Username,Rank,Power,Level,Status,Last_Active</code> (only Username and Rank will be imported)</p>
                     <div class="csv-upload">
                         <input type="file" id="csv-file" accept=".csv" />
-                        <button type="button" id="import-btn" class="import-btn">Import CSV</button>
+                        <button type="button" id="import-btn" class="import-btn">Preview CSV</button>
                     </div>
                     <div id="import-result" class="import-result" style="display: none;"></div>
                 </div>
             </section>
+
+            <!-- CSV Preview Modal -->
+            <div id="csv-preview-modal" class="modal" style="display: none;">
+                <div class="modal-content" style="max-width: 800px;">
+                    <span class="close" id="close-csv-modal">&times;</span>
+                    <h3>📋 Review CSV Import</h3>
+                    <div id="csv-summary" class="csv-summary"></div>
+                    <div id="csv-members-preview" class="csv-members-preview"></div>
+                    
+                    <!-- Members to Remove Section -->
+                    <div id="remove-members-section" class="remove-members-section" style="display: none;">
+                        <h4>🗑️ Members Not in CSV</h4>
+                        <p class="remove-help">Select members to remove from the database:</p>
+                        <div id="members-to-remove-list" class="members-to-remove-list"></div>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button type="button" id="confirm-csv-btn" class="primary-btn">✔ Confirm & Import Selected</button>
+                        <button type="button" id="cancel-csv-btn" class="secondary-btn">✖ Cancel</button>
+                    </div>
+                </div>
+            </div>
 
             <section class="members-section">
                 <h3>Alliance Members</h3>

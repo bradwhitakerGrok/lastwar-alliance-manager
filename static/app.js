@@ -296,12 +296,22 @@ function setupSearch() {
 }
 
 // Setup CSV import functionality
+let detectedCSVMembers = [];
+let selectedCSVMembers = new Set();
+let membersToRemove = [];
+let selectedRemoveMembers = new Set();
+
 function setupCSVImport() {
     const importBtn = document.getElementById('import-btn');
     const fileInput = document.getElementById('csv-file');
+    const modal = document.getElementById('csv-preview-modal');
+    const closeModal = document.getElementById('close-csv-modal');
+    const confirmBtn = document.getElementById('confirm-csv-btn');
+    const cancelBtn = document.getElementById('cancel-csv-btn');
     
     if (!importBtn || !fileInput) return;
     
+    // Preview CSV button
     importBtn.addEventListener('click', async () => {
         if (!canManageRanks) {
             alert('You do not have permission to import members. Only R4 and R5 can do this.');
@@ -323,7 +333,7 @@ function setupCSVImport() {
         formData.append('file', file);
         
         importBtn.disabled = true;
-        importBtn.textContent = 'Importing...';
+        importBtn.textContent = 'Loading...';
         
         try {
             const response = await fetch('/api/members/import', {
@@ -336,11 +346,117 @@ function setupCSVImport() {
                     throw new Error('Permission denied: Only R4/R5 members can import members');
                 }
                 const errorText = await response.text();
-                throw new Error(errorText || 'Failed to import CSV');
+                throw new Error(errorText || 'Failed to read CSV');
             }
             
             const result = await response.json();
-            displayImportResult(result);
+            
+            if (result.errors && result.errors.length > 0) {
+                displayImportError('CSV contains errors:\n' + result.errors.join('\n'));
+            }
+            
+            if (result.detected_members && result.detected_members.length > 0) {
+                detectedCSVMembers = result.detected_members;
+                selectedCSVMembers = new Set(result.detected_members.map((m, i) => i)); // Select all by default
+                membersToRemove = result.members_to_remove || [];
+                selectedRemoveMembers = new Set(); // Don't select any for removal by default
+                showCSVPreview(result);
+                modal.style.display = 'block';
+            } else {
+                displayImportError('No valid members found in CSV file');
+            }
+            
+        } catch (error) {
+            console.error('Import error:', error);
+            displayImportError(error.message);
+        } finally {
+            importBtn.disabled = false;
+            importBtn.textContent = 'Preview CSV';
+        }
+    });
+    
+    // Close modal
+    closeModal.addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+    
+    cancelBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+    
+    // Confirm import
+    confirmBtn.addEventListener('click', async () => {
+        const selectedMembers = detectedCSVMembers.filter((_, i) => selectedCSVMembers.has(i));
+        
+        if (selectedMembers.length === 0) {
+            alert('Please select at least one member to import');
+            return;
+        }
+        
+        // Collect renames from dropdown selections
+        const renames = [];
+        const renameSelects = document.querySelectorAll('.rename-select');
+        renameSelects.forEach(select => {
+            const oldName = select.value;
+            if (oldName) { // If a rename option was selected
+                const newName = select.dataset.newName;
+                renames.push({ old_name: oldName, new_name: newName });
+            }
+        });
+        
+        // Collect selected member IDs to remove
+        const removeMemberIDs = Array.from(selectedRemoveMembers);
+        
+        if (removeMemberIDs.length > 0) {
+            const memberNames = removeMemberIDs.map(id => {
+                const member = membersToRemove.find(m => m.id === id);
+                return member ? member.name : 'Unknown';
+            }).join(', ');
+            const confirmMsg = `⚠️ WARNING: You are about to delete ${removeMemberIDs.length} member(s)!\n\n` +
+                             `Members: ${memberNames}\n\n` +
+                             `Are you sure you want to continue?`;
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+        }
+        
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Importing...';
+        
+        try {
+            const response = await fetch('/api/members/import/confirm', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    members: selectedMembers,
+                    remove_member_ids: removeMemberIDs,
+                    renames: renames
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to import members');
+            }
+            
+            const result = await response.json();
+            modal.style.display = 'none';
+            
+            let message = `✓ Successfully imported ${result.added + result.updated} member(s)`;
+            if (result.removed > 0) {
+                message += `\n🗑️ Removed ${result.removed} member(s) not in CSV`;
+            }
+            if (result.unchanged > 0) {
+                message += `\n→ ${result.unchanged} unchanged`;
+            }
+            
+            displayImportResult({
+                imported: result.added + result.updated,
+                skipped: result.unchanged,
+                removed: result.removed,
+                errors: []
+            });
             
             // Reload members list
             await loadMembers();
@@ -349,13 +465,134 @@ function setupCSVImport() {
             fileInput.value = '';
             
         } catch (error) {
-            console.error('Import error:', error);
-            displayImportError(error.message);
+            console.error('Confirm error:', error);
+            alert('Error importing members: ' + error.message);
         } finally {
-            importBtn.disabled = false;
-            importBtn.textContent = 'Import CSV';
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = '✔ Confirm & Import Selected';
         }
     });
+}
+
+// Show CSV preview in modal
+function showCSVPreview(result) {
+    const summaryDiv = document.getElementById('csv-summary');
+    const previewDiv = document.getElementById('csv-members-preview');
+    
+    const newCount = result.detected_members.filter(m => m.is_new).length;
+    const changedCount = result.detected_members.filter(m => m.rank_changed).length;
+    const unchangedCount = result.detected_members.length - newCount - changedCount;
+    const similarCount = result.detected_members.filter(m => m.similar_match && m.similar_match.length > 0).length;
+    
+    summaryDiv.innerHTML = `
+        <div class="summary-stats">
+            <div class="stat-item">
+                <span class="stat-label">Total Members:</span>
+                <span class="stat-value">${result.detected_members.length}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label new">New Members:</span>
+                <span class="stat-value new">${newCount}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label change">Rank Changes:</span>
+                <span class="stat-value change">${changedCount}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">No Changes:</span>
+                <span class="stat-value">${unchangedCount}</span>
+            </div>
+            ${similarCount > 0 ? `
+            <div class="stat-item">
+                <span class="stat-label warning">Similar Names:</span>
+                <span class="stat-value warning">${similarCount}</span>
+            </div>
+            ` : ''}
+        </div>
+    `;
+    
+    let html = '<div class="csv-members-list">';
+    result.detected_members.forEach((member, index) => {
+        const statusClass = member.is_new ? 'new' : (member.rank_changed ? 'changed' : 'unchanged');
+        const statusText = member.is_new ? 'NEW' : (member.rank_changed ? `${member.old_rank} → ${member.rank}` : 'No Change');
+        const checked = selectedCSVMembers.has(index) ? 'checked' : '';
+        
+        html += `
+            <div class="csv-member-item ${statusClass}">
+                <input type="checkbox" class="member-checkbox" data-index="${index}" ${checked}>
+                <div class="member-info">
+                    <span class="member-name">${escapeHtml(member.name)}</span>
+                    <span class="member-rank rank-${member.rank}">${member.rank}</span>
+                    <span class="member-status">${statusText}</span>
+                </div>
+                ${member.similar_match && member.similar_match.length > 0 ? `
+                    <div class="similar-match-notice">
+                        <span class="warning-icon">⚠️</span>
+                        <span>Similar name(s) found: ${member.similar_match.map(n => escapeHtml(n)).join(', ')}</span>
+                        <select class="rename-select" data-index="${index}" data-new-name="${escapeHtml(member.name)}">
+                            <option value="">Add as new member</option>
+                            ${member.similar_match.map(oldName => 
+                                `<option value="${escapeHtml(oldName)}">Rename "${escapeHtml(oldName)}" to "${escapeHtml(member.name)}"</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    });
+    html += '</div>';
+    
+    previewDiv.innerHTML = html;
+    
+    // Add checkbox event listeners
+    previewDiv.querySelectorAll('.member-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', (e) => {
+            const index = parseInt(e.target.dataset.index);
+            if (e.target.checked) {
+                selectedCSVMembers.add(index);
+            } else {
+                selectedCSVMembers.delete(index);
+            }
+        });
+    });
+    
+    // Show members to remove section if there are any
+    const removeSection = document.getElementById('remove-members-section');
+    const removeList = document.getElementById('members-to-remove-list');
+    
+    if (membersToRemove && membersToRemove.length > 0) {
+        removeSection.style.display = 'block';
+        
+        let removeHtml = '<div class="members-to-remove-grid">';
+        membersToRemove.forEach(member => {
+            removeHtml += `
+                <div class="remove-member-item">
+                    <input type="checkbox" class="remove-checkbox" data-member-id="${member.id}">
+                    <div class="remove-member-info">
+                        <span class="remove-member-name">${escapeHtml(member.name)}</span>
+                        <span class="member-rank rank-${member.rank}">${member.rank}</span>
+                    </div>
+                </div>
+            `;
+        });
+        removeHtml += '</div>';
+        
+        removeList.innerHTML = removeHtml;
+        
+        // Add checkbox event listeners for remove members
+        removeList.querySelectorAll('.remove-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                const memberId = parseInt(e.target.dataset.memberId);
+                if (e.target.checked) {
+                    selectedRemoveMembers.add(memberId);
+                } else {
+                    selectedRemoveMembers.delete(memberId);
+                }
+            });
+        });
+    } else {
+        removeSection.style.display = 'none';
+    }
 }
 
 // Display import results
