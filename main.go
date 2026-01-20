@@ -1,15 +1,23 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
+	"io"
 	"log"
 	"math/big"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -132,6 +140,29 @@ type StormAssignment struct {
 	BuildingID string `json:"building_id"`
 	MemberID   int    `json:"member_id"`
 	Position   int    `json:"position"`
+}
+
+type DetectedMember struct {
+	Name        string `json:"name"`
+	Rank        string `json:"rank"`
+	IsNew       bool   `json:"is_new"`
+	RankChanged bool   `json:"rank_changed"`
+	OldRank     string `json:"old_rank,omitempty"`
+}
+
+type UploadResult struct {
+	ProcessedCount  int              `json:"processed_count"`
+	DetectedMembers []DetectedMember `json:"detected_members"`
+}
+
+type ConfirmRequest struct {
+	Members []DetectedMember `json:"members"`
+}
+
+type ConfirmResult struct {
+	Added     int `json:"added"`
+	Updated   int `json:"updated"`
+	Unchanged int `json:"unchanged"`
 }
 
 var db *sql.DB
@@ -2455,6 +2486,213 @@ func deleteStormAssignments(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// Upload and process screenshots
+func uploadScreenshots(w http.ResponseWriter, r *http.Request) {
+	// Parse multipart form with 50MB max
+	err := r.ParseMultipartForm(50 << 20) // 50MB
+	if err != nil {
+		http.Error(w, "Unable to parse form: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	files := r.MultipartForm.File["screenshots"]
+	if len(files) == 0 {
+		http.Error(w, "No files uploaded", http.StatusBadRequest)
+		return
+	}
+
+	allDetectedMembers := make(map[string]DetectedMember)
+
+	// Process each uploaded file
+	for _, fileHeader := range files {
+		file, err := fileHeader.Open()
+		if err != nil {
+			log.Printf("Error opening file %s: %v", fileHeader.Filename, err)
+			continue
+		}
+		defer file.Close()
+
+		// Read file content
+		fileBytes, err := io.ReadAll(file)
+		if err != nil {
+			log.Printf("Error reading file %s: %v", fileHeader.Filename, err)
+			continue
+		}
+
+		// Process image and extract members
+		members, err := processScreenshot(fileBytes)
+		if err != nil {
+			log.Printf("Error processing screenshot %s: %v", fileHeader.Filename, err)
+			continue
+		}
+
+		// Merge detected members
+		for _, member := range members {
+			allDetectedMembers[member.Name] = member
+		}
+	}
+
+	// Get existing members from database
+	existingMembers := make(map[string]Member)
+	rows, err := db.Query("SELECT id, name, rank FROM members")
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var m Member
+			rows.Scan(&m.ID, &m.Name, &m.Rank)
+			existingMembers[m.Name] = m
+		}
+	}
+
+	// Check for new members and rank changes
+	detectedList := make([]DetectedMember, 0, len(allDetectedMembers))
+	for _, detected := range allDetectedMembers {
+		if existing, found := existingMembers[detected.Name]; found {
+			// Existing member - check for rank change
+			if existing.Rank != detected.Rank {
+				detected.RankChanged = true
+				detected.OldRank = existing.Rank
+			}
+		} else {
+			// New member
+			detected.IsNew = true
+		}
+		detectedList = append(detectedList, detected)
+	}
+
+	result := UploadResult{
+		ProcessedCount:  len(files),
+		DetectedMembers: detectedList,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+// Process screenshot and extract member information
+func processScreenshot(imageData []byte) ([]DetectedMember, error) {
+	// Decode image to verify it's valid
+	_, _, err := image.Decode(bytes.NewReader(imageData))
+	if err != nil {
+		return nil, fmt.Errorf("invalid image: %v", err)
+	}
+
+	// For now, we'll use a simple text extraction approach
+	// In production, you would integrate with an OCR library like gosseract
+	// Since OCR setup is complex, I'll implement a mock version that you can replace
+
+	// Convert image to base64 for potential future OCR service integration
+	_ = base64.StdEncoding.EncodeToString(imageData)
+
+	// Mock OCR result - in production, replace this with actual OCR
+	// This simulates extracting text from the screenshot
+	mockText := simulateOCR(imageData)
+
+	// Parse the extracted text to find members and ranks
+	members := parseMembers(mockText)
+
+	return members, nil
+}
+
+// Simulate OCR - replace this with actual OCR library integration
+func simulateOCR(imageData []byte) string {
+	// In production, use gosseract or similar:
+	// client := gosseract.NewClient()
+	// defer client.Close()
+	// client.SetImageFromBytes(imageData)
+	// text, _ := client.Text()
+	// return text
+
+	// For now, return empty string to indicate OCR not implemented
+	// Users will need to use the manual CSV import instead
+	return ""
+}
+
+// Parse extracted text to find member names and ranks
+func parseMembers(text string) []DetectedMember {
+	members := []DetectedMember{}
+
+	// Split into lines
+	lines := strings.Split(text, "\n")
+
+	// Regex patterns to match member names and ranks
+	rankPattern := regexp.MustCompile(`\b(R5|R4|R3|R2|R1)\b`)
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Look for rank in the line
+		rankMatches := rankPattern.FindStringSubmatch(line)
+		if len(rankMatches) > 0 {
+			rank := rankMatches[1]
+
+			// Extract member name (text before the rank)
+			namePart := rankPattern.ReplaceAllString(line, "")
+			namePart = strings.TrimSpace(namePart)
+
+			// Clean up common OCR artifacts
+			namePart = strings.ReplaceAll(namePart, "  ", " ")
+			namePart = strings.Trim(namePart, " \t\r\n.,;:")
+
+			if namePart != "" && len(namePart) > 1 {
+				members = append(members, DetectedMember{
+					Name: namePart,
+					Rank: rank,
+				})
+			}
+		}
+	}
+
+	return members
+}
+
+// Confirm and update members in database
+func confirmMemberUpdates(w http.ResponseWriter, r *http.Request) {
+	var request ConfirmRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	result := ConfirmResult{}
+
+	for _, member := range request.Members {
+		// Check if member exists
+		var existingID int
+		var existingRank string
+		err := db.QueryRow("SELECT id, rank FROM members WHERE name = ?", member.Name).Scan(&existingID, &existingRank)
+
+		if err == sql.ErrNoRows {
+			// Add new member
+			_, err = db.Exec("INSERT INTO members (name, rank) VALUES (?, ?)", member.Name, member.Rank)
+			if err != nil {
+				log.Printf("Error adding member %s: %v", member.Name, err)
+				continue
+			}
+			result.Added++
+		} else if err == nil {
+			// Update existing member if rank changed
+			if existingRank != member.Rank {
+				_, err = db.Exec("UPDATE members SET rank = ? WHERE id = ?", member.Rank, existingID)
+				if err != nil {
+					log.Printf("Error updating member %s: %v", member.Name, err)
+					continue
+				}
+				result.Updated++
+			} else {
+				result.Unchanged++
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
 func main() {
 	// Initialize session store first
 	initSessionStore()
@@ -2511,6 +2749,10 @@ func main() {
 	router.HandleFunc("/api/storm-assignments", authMiddleware(getStormAssignments)).Methods("GET")
 	router.HandleFunc("/api/storm-assignments", authMiddleware(r4r5Middleware(saveStormAssignments))).Methods("POST")
 	router.HandleFunc("/api/storm-assignments/{taskForce}", authMiddleware(r4r5Middleware(deleteStormAssignments))).Methods("DELETE")
+
+	// Upload screenshots routes (protected, R4/R5 only)
+	router.HandleFunc("/api/upload-screenshots", authMiddleware(r4r5Middleware(uploadScreenshots))).Methods("POST")
+	router.HandleFunc("/api/confirm-member-updates", authMiddleware(r4r5Middleware(confirmMemberUpdates))).Methods("POST")
 
 	// Serve static files
 	router.PathPrefix("/").Handler(http.FileServer(http.Dir("./static")))
