@@ -257,15 +257,9 @@ async function createMemberTimelineCharts(rankings) {
     memberTimelineCharts.forEach(chart => chart.destroy());
     memberTimelineCharts = [];
     
-    const container = document.getElementById('member-charts-container');
-    if (!container) return;
-    
-    container.innerHTML = '';
-    
-    const showReset = document.getElementById('show-reset').checked;
-    const showNoReset = document.getElementById('show-no-reset').checked;
-    const scaleType = document.querySelector('input[name="scale-type"]:checked').value;
-    const searchTerm = document.getElementById('member-chart-search')?.value.toLowerCase().trim() || '';
+    const showReset = document.getElementById('show-reset')?.checked ?? true;
+    const showNoReset = document.getElementById('show-no-reset')?.checked ?? true;
+    const scaleType = document.querySelector('input[name="scale-type"]:checked')?.value || 'linear';
     
     // Fetch timeline data for each member (last 3 months)
     try {
@@ -274,31 +268,15 @@ async function createMemberTimelineCharts(rankings) {
         
         const timelineData = await response.json();
         
-        // Filter rankings based on search
-        const filteredRankings = searchTerm 
-            ? rankings.filter(r => r.member.name.toLowerCase().includes(searchTerm))
-            : rankings;
-        
-        if (filteredRankings.length === 0) {
-            container.innerHTML = '<p class="empty">No members found matching your search.</p>';
-            return;
-        }
-        
-        // Create chart for each filtered member
-        filteredRankings.forEach(ranking => {
+        // Create chart for each member within their ranking card
+        rankings.forEach(ranking => {
             const memberData = timelineData[ranking.member.id];
             if (!memberData || memberData.dates.length === 0) return;
             
-            const chartDiv = document.createElement('div');
-            chartDiv.className = 'member-timeline-chart';
-            chartDiv.setAttribute('data-member-name', ranking.member.name.toLowerCase());
-            chartDiv.innerHTML = `
-                <h5>${ranking.member.name} (${ranking.member.rank})</h5>
-                <canvas id="timeline-${ranking.member.id}"></canvas>
-            `;
-            container.appendChild(chartDiv);
+            const canvas = document.getElementById(`timeline-${ranking.member.id}`);
+            if (!canvas) return;
             
-            const ctx = document.getElementById(`timeline-${ranking.member.id}`).getContext('2d');
+            const ctx = canvas.getContext('2d');
             
             const datasets = [];
             
@@ -309,7 +287,8 @@ async function createMemberTimelineCharts(rankings) {
                     borderColor: 'rgba(255, 99, 132, 1)',
                     backgroundColor: 'rgba(255, 99, 132, 0.1)',
                     borderWidth: 2,
-                    fill: true
+                    fill: true,
+                    tension: 0.1
                 });
             }
             
@@ -320,9 +299,12 @@ async function createMemberTimelineCharts(rankings) {
                     borderColor: 'rgba(75, 192, 192, 1)',
                     backgroundColor: 'rgba(75, 192, 192, 0.1)',
                     borderWidth: 2,
-                    fill: true
+                    fill: true,
+                    tension: 0.1
                 });
             }
+            
+            if (datasets.length === 0) return;
             
             const chart = new Chart(ctx, {
                 type: 'line',
@@ -334,7 +316,11 @@ async function createMemberTimelineCharts(rankings) {
                     responsive: true,
                     maintainAspectRatio: true,
                     plugins: {
-                        legend: { display: true, position: 'top' },
+                        legend: { 
+                            display: true, 
+                            position: 'top',
+                            labels: { font: { size: 11 } }
+                        },
                         tooltip: {
                             mode: 'index',
                             intersect: false
@@ -342,12 +328,18 @@ async function createMemberTimelineCharts(rankings) {
                     },
                     scales: {
                         x: {
-                            title: { display: true, text: 'Week' }
+                            title: { display: true, text: 'Week', font: { size: 11 } },
+                            ticks: { 
+                                maxRotation: 45,
+                                minRotation: 45,
+                                font: { size: 9 }
+                            }
                         },
                         y: {
                             type: scaleType,
                             beginAtZero: true,
-                            title: { display: true, text: 'Points' }
+                            title: { display: true, text: 'Points', font: { size: 11 } },
+                            ticks: { font: { size: 10 } }
                         }
                     },
                     interaction: {
@@ -362,7 +354,6 @@ async function createMemberTimelineCharts(rankings) {
         });
     } catch (error) {
         console.error('Error creating member timeline charts:', error);
-        container.innerHTML = '<p class="error">Failed to load member timeline data.</p>';
     }
 }
 
@@ -489,12 +480,20 @@ function displayRankings(rankings) {
                             ` : ''}
                         </div>
                     </div>
+                    
+                    <div class="detail-section">
+                        <h5>📊 Point Accumulation Timeline (Last 3 Months)</h5>
+                        <canvas id="timeline-${ranking.member.id}" class="member-timeline-canvas"></canvas>
+                    </div>
                 </div>
             </div>
         `;
     });
     
     document.getElementById('rankings-list').innerHTML = html;
+    
+    // Create timeline charts after rendering rankings
+    createMemberTimelineCharts(filteredRankings);
 }
 
 // Event listeners for chart options
@@ -510,19 +509,6 @@ document.querySelectorAll('input[name="scale-type"]').forEach(radio => {
     radio.addEventListener('change', () => {
         if (currentData) displayCharts(currentData);
     });
-});
-
-// Member chart search
-document.getElementById('member-chart-search')?.addEventListener('input', () => {
-    if (currentData) displayCharts(currentData);
-});
-
-document.getElementById('clear-member-search')?.addEventListener('click', () => {
-    const searchInput = document.getElementById('member-chart-search');
-    if (searchInput) {
-        searchInput.value = '';
-        if (currentData) displayCharts(currentData);
-    }
 });
 
 // Get rank emoji

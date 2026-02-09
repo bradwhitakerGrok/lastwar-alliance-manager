@@ -2341,6 +2341,12 @@ button {
     font-size: 1.1em;
 }
 
+.member-timeline-canvas {
+    max-height: 300px;
+    width: 100% !important;
+    height: auto !important;
+}
+
 .detail-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
