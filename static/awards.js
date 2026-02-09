@@ -1,32 +1,14 @@
 const API_URL = '/api/awards';
+const AWARD_TYPES_URL = '/api/award-types';
 const MEMBERS_URL = '/api/members';
 
-const AWARD_TYPES = [
-    'Alliance Champion',
-    'Star of Desert Storm',
-    'Soldier Crusher',
-    'Divine Healer',
-    'Great Destroyer',
-    'Grind King',
-    'Alliance Exercise MVP',
-    'Doom Elite Slayer',
-    'Best Manager',
-    'Alliance Sponsor',
-    'Firefighting Leader',
-    'Excavator Radar',
-    'Shining Star',
-    'MVP',
-    'Devil Trainer',
-    'Trial Assist King',
-    'Good Helper'
-];
-
+let AWARD_TYPES = []; // Will be loaded dynamically from database
 let currentWeekDate = null;
 let allMembers = [];
 let currentAwards = {};
 let allHistory = [];
 let currentUsername = '';
-let activeAwardTypes = new Set(AWARD_TYPES); // All awards active by default
+let activeAwardTypes = new Set(); // All active awards
 
 // Check authentication
 async function checkAuth() {
@@ -118,6 +100,34 @@ function navigateNextWeek() {
     currentWeekDate.setDate(currentWeekDate.getDate() + 7);
     updateWeekDisplay();
     loadAwards();
+}
+
+// Load award types from database
+async function loadAwardTypes() {
+    try {
+        const response = await fetch(AWARD_TYPES_URL);
+        const awardTypes = await response.json();
+        
+        AWARD_TYPES = awardTypes
+            .filter(at => at.active)
+            .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
+            .map(at => at.name);
+        
+        // Initialize active award types
+        activeAwardTypes = new Set(AWARD_TYPES);
+    } catch (error) {
+        console.error('Error loading award types:', error);
+        // Fallback to default awards if API fails
+        AWARD_TYPES = [
+            'Alliance Champion',
+            'Star of Desert Storm',
+            'Soldier Crusher',
+            'Divine Healer',
+            'Great Destroyer',
+            'Grind King'
+        ];
+        activeAwardTypes = new Set(AWARD_TYPES);
+    }
 }
 
 // Load members
@@ -501,14 +511,137 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// Add new award type
+async function addNewAwardType(name) {
+    if (!name || !name.trim()) {
+        alert('Please enter an award name');
+        return false;
+    }
+    
+    // Check if already exists
+    if (AWARD_TYPES.includes(name.trim())) {
+        alert('This award type already exists');
+        return false;
+    }
+    
+    try {
+        const response = await fetch(AWARD_TYPES_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name.trim() })
+        });
+        
+        if (response.ok) {
+            // Reload award types
+            await loadAwardTypes();
+            activeAwardTypes.add(name.trim());
+            renderAwardsForm(true);
+            document.getElementById('new-award-search').value = '';
+            document.getElementById('award-suggestions').style.display = 'none';
+            return true;
+        } else if (response.status === 409) {
+            alert('This award type already exists in the database');
+            return false;
+        } else {
+            const error = await response.text();
+            alert('Error adding award type: ' + error);
+            return false;
+        }
+    } catch (error) {
+        console.error('Error adding award type:', error);
+        alert('Error adding award type. Please try again.');
+        return false;
+    }
+}
+
+// Setup award search and suggestions
+function setupAwardSearch() {
+    const searchInput = document.getElementById('new-award-search');
+    const addBtn = document.getElementById('add-award-btn');
+    const suggestionsDiv = document.getElementById('award-suggestions');
+    
+    if (!searchInput || !addBtn) return;
+    
+    // Search input handler
+    searchInput.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.trim().toLowerCase();
+        
+        if (searchTerm.length < 2) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        
+        // Filter inactive awards that match search
+        const inactiveTypes = AWARD_TYPES.filter(type => !activeAwardTypes.has(type));
+        const matches = inactiveTypes.filter(type => 
+            type.toLowerCase().includes(searchTerm)
+        );
+        
+        if (matches.length > 0) {
+            let html = '<div style="padding: 10px; background: white; border-radius: 6px; border: 1px solid #dee2e6;">';
+            html += '<strong style="display: block; margin-bottom: 8px; color: #495057;">Existing Awards:</strong>';
+            html += '<div style="display: flex; flex-wrap: wrap; gap: 8px;">';
+            matches.forEach(award => {
+                html += `<button class="inactive-award-chip" style="cursor: pointer;" data-award="${award}">${award}</button>`;
+            });
+            html += '</div></div>';
+            suggestionsDiv.innerHTML = html;
+            suggestionsDiv.style.display = 'block';
+            
+            // Add click handlers to suggestions
+            suggestionsDiv.querySelectorAll('.inactive-award-chip').forEach(chip => {
+                chip.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const award = e.target.dataset.award;
+                    activeAwardTypes.add(award);
+                    renderAwardsForm(true);
+                    searchInput.value = '';
+                    suggestionsDiv.style.display = 'none';
+                });
+            });
+        } else {
+            suggestionsDiv.style.display = 'none';
+        }
+    });
+    
+    // Add button handler
+    addBtn.addEventListener('click', async () => {
+        const name = searchInput.value.trim();
+        if (name) {
+            const success = await addNewAwardType(name);
+            if (success) {
+                alert(`Award type "${name}" added successfully!`);
+            }
+        }
+    });
+    
+    // Enter key handler
+    searchInput.addEventListener('keypress', async (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const name = searchInput.value.trim();
+            if (name) {
+                const success = await addNewAwardType(name);
+                if (success) {
+                    alert(`Award type "${name}" added successfully!`);
+                }
+            }
+        }
+    });
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     const isAuthenticated = await checkAuth();
     if (isAuthenticated) {
+        await loadAwardTypes(); // Load award types first
         await loadMembers();
         initializeWeek();
         await loadAwards();
         await loadHistory();
+        
+        // Set up award search
+        setupAwardSearch();
         
         // Set up event listeners after DOM is ready
         document.getElementById('prev-week').addEventListener('click', navigatePrevWeek);

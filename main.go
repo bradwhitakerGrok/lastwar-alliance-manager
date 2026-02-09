@@ -78,6 +78,14 @@ type Award struct {
 	CreatedAt  string `json:"created_at"`
 }
 
+type AwardType struct {
+	ID        int    `json:"id"`
+	Name      string `json:"name"`
+	Active    bool   `json:"active"`
+	SortOrder int    `json:"sort_order"`
+	CreatedAt string `json:"created_at"`
+}
+
 type Recommendation struct {
 	ID              int    `json:"id"`
 	MemberID        int    `json:"member_id"`
@@ -691,6 +699,56 @@ func initDB() error {
 		log.Println("Database migration: Added conductor_score column to train_schedules table")
 	}
 
+	// Create award_types table
+	createAwardTypesSQL := `CREATE TABLE IF NOT EXISTS award_types (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL UNIQUE,
+		active BOOLEAN DEFAULT 1,
+		sort_order INTEGER DEFAULT 0,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);`
+
+	_, err = db.Exec(createAwardTypesSQL)
+	if err != nil {
+		return err
+	}
+
+	// Insert default award types if table is empty
+	var awardTypeCount int
+	err = db.QueryRow("SELECT COUNT(*) FROM award_types").Scan(&awardTypeCount)
+	if err != nil {
+		return err
+	}
+
+	if awardTypeCount == 0 {
+		defaultAwards := []string{
+			"Alliance Champion",
+			"Star of Desert Storm",
+			"Soldier Crusher",
+			"Divine Healer",
+			"Great Destroyer",
+			"Grind King",
+			"Alliance Exercise MVP",
+			"Doom Elite Slayer",
+			"Best Manager",
+			"Alliance Sponsor",
+			"Firefighting Leader",
+			"Excavator Radar",
+			"Shining Star",
+			"MVP",
+			"Devil Trainer",
+			"Trial Assist King",
+			"Good Helper",
+		}
+
+		for i, award := range defaultAwards {
+			_, err = db.Exec("INSERT INTO award_types (name, active, sort_order) VALUES (?, 1, ?)", award, i)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	// Create awards table
 	createAwardsSQL := `CREATE TABLE IF NOT EXISTS awards (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -881,13 +939,13 @@ All aboard for another successful run!`
 	}
 
 	// Create default admin user if no users exist
-	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
+	var userCount int
+	err = db.QueryRow("SELECT COUNT(*) FROM users").Scan(&userCount)
 	if err != nil {
 		return err
 	}
 
-	if count == 0 {
+	if userCount == 0 {
 		// Default credentials: admin/admin123
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
 		if err != nil {
@@ -2018,6 +2076,146 @@ func deleteWeekAwards(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// Get all award types
+func getAwardTypes(w http.ResponseWriter, r *http.Request) {
+	rows, err := db.Query(`
+		SELECT id, name, active, sort_order, created_at
+		FROM award_types
+		ORDER BY sort_order, name
+	`)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	awardTypes := []AwardType{}
+	for rows.Next() {
+		var at AwardType
+		if err := rows.Scan(&at.ID, &at.Name, &at.Active, &at.SortOrder, &at.CreatedAt); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		awardTypes = append(awardTypes, at)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(awardTypes)
+}
+
+// Create a new award type
+func createAwardType(w http.ResponseWriter, r *http.Request) {
+	var at AwardType
+	if err := json.NewDecoder(r.Body).Decode(&at); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Validate name
+	if strings.TrimSpace(at.Name) == "" {
+		http.Error(w, "Award type name is required", http.StatusBadRequest)
+		return
+	}
+
+	// Check if award type already exists
+	var existingID int
+	err := db.QueryRow("SELECT id FROM award_types WHERE name = ?", at.Name).Scan(&existingID)
+	if err == nil {
+		http.Error(w, "Award type already exists", http.StatusConflict)
+		return
+	}
+
+	// Get max sort_order and add 1
+	var maxOrder int
+	err = db.QueryRow("SELECT COALESCE(MAX(sort_order), -1) FROM award_types").Scan(&maxOrder)
+	if err != nil {
+		maxOrder = -1
+	}
+
+	result, err := db.Exec(
+		"INSERT INTO award_types (name, active, sort_order) VALUES (?, ?, ?)",
+		at.Name, true, maxOrder+1)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	id, _ := result.LastInsertId()
+	at.ID = int(id)
+	at.Active = true
+	at.SortOrder = maxOrder + 1
+	at.CreatedAt = time.Now().Format(time.RFC3339)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(at)
+}
+
+// Update award type (mainly for active status)
+func updateAwardType(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	var at AwardType
+	if err := json.NewDecoder(r.Body).Decode(&at); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	_, err = db.Exec(
+		"UPDATE award_types SET active = ?, name = ? WHERE id = ?",
+		at.Active, at.Name, id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "Award type updated"})
+}
+
+// Delete award type (only if not used in any awards)
+func deleteAwardType(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	// Check if award type is used in any awards
+	var count int
+	var name string
+	err = db.QueryRow("SELECT name FROM award_types WHERE id = ?", id).Scan(&name)
+	if err != nil {
+		http.Error(w, "Award type not found", http.StatusNotFound)
+		return
+	}
+
+	err = db.QueryRow("SELECT COUNT(*) FROM awards WHERE award_type = ?", name).Scan(&count)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if count > 0 {
+		http.Error(w, "Cannot delete award type that is used in awards. You can deactivate it instead.", http.StatusBadRequest)
+		return
+	}
+
+	_, err = db.Exec("DELETE FROM award_types WHERE id = ?", id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // Get all recommendations
 func getRecommendations(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(`
@@ -2618,10 +2816,10 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 		}
 
 		timelines[member.ID] = map[string]interface{}{
-			"dates":              weekLabels,
-			"points_with_reset":  pointsWithReset,
-			"points_cumulative":  pointsCumulative,
-			"conductor_dates":    conductorWeekLabels,
+			"dates":             weekLabels,
+			"points_with_reset": pointsWithReset,
+			"points_cumulative": pointsCumulative,
+			"conductor_dates":   conductorWeekLabels,
 		}
 	}
 
@@ -3066,6 +3264,12 @@ func main() {
 	router.HandleFunc("/api/awards", authMiddleware(getAwards)).Methods("GET")
 	router.HandleFunc("/api/awards", authMiddleware(saveAwards)).Methods("POST")
 	router.HandleFunc("/api/awards/{week}", authMiddleware(deleteWeekAwards)).Methods("DELETE")
+
+	// Award types routes
+	router.HandleFunc("/api/award-types", authMiddleware(getAwardTypes)).Methods("GET")
+	router.HandleFunc("/api/award-types", authMiddleware(createAwardType)).Methods("POST")
+	router.HandleFunc("/api/award-types/{id}", authMiddleware(updateAwardType)).Methods("PUT")
+	router.HandleFunc("/api/award-types/{id}", authMiddleware(deleteAwardType)).Methods("DELETE")
 
 	// Recommendations routes (protected)
 	router.HandleFunc("/api/recommendations", authMiddleware(getRecommendations)).Methods("GET")
