@@ -2604,10 +2604,24 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 			currentDate = currentDate.AddDate(0, 0, 7)
 		}
 
+		// Format conductor dates for display (convert to week labels)
+		conductorWeekLabels := []string{}
+		for _, condDate := range conductorDates {
+			if parsedDate, err := time.Parse("2006-01-02", condDate); err == nil {
+				monday := getMondayOfWeek(parsedDate)
+				weekEnd := monday.AddDate(0, 0, 6)
+				weekLabel := fmt.Sprintf("%s - %s",
+					monday.Format("Jan 2"),
+					weekEnd.Format("Jan 2"))
+				conductorWeekLabels = append(conductorWeekLabels, weekLabel)
+			}
+		}
+
 		timelines[member.ID] = map[string]interface{}{
-			"dates":             weekLabels,
-			"points_with_reset": pointsWithReset,
-			"points_cumulative": pointsCumulative,
+			"dates":              weekLabels,
+			"points_with_reset":  pointsWithReset,
+			"points_cumulative":  pointsCumulative,
+			"conductor_dates":    conductorWeekLabels,
 		}
 	}
 

@@ -304,6 +304,31 @@ async function createMemberTimelineCharts(rankings) {
             
             if (datasets.length === 0) return;
             
+            // Create annotations for conductor assignments (vertical lines)
+            const annotations = {};
+            if (memberData.conductor_dates && memberData.conductor_dates.length > 0) {
+                memberData.conductor_dates.forEach((conductorWeek, idx) => {
+                    const weekIndex = memberData.dates.indexOf(conductorWeek);
+                    if (weekIndex !== -1) {
+                        annotations[`conductor-${idx}`] = {
+                            type: 'line',
+                            xMin: weekIndex,
+                            xMax: weekIndex,
+                            borderColor: 'rgba(255, 159, 64, 0.8)',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            label: {
+                                display: true,
+                                content: '🚂',
+                                position: 'start',
+                                yAdjust: -10,
+                                font: { size: 14 }
+                            }
+                        };
+                    }
+                });
+            }
+            
             const chart = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -322,6 +347,9 @@ async function createMemberTimelineCharts(rankings) {
                         tooltip: {
                             mode: 'index',
                             intersect: false
+                        },
+                        annotation: {
+                            annotations: annotations
                         }
                     },
                     scales: {
