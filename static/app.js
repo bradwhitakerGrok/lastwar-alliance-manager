@@ -94,13 +94,17 @@ function displayMembers(members) {
     }
 
     membersList.innerHTML = members.map(member => {
+        const eligibleStatus = member.eligible !== false ? '✓ Eligible' : '✗ Not Eligible';
+        const eligibleClass = member.eligible !== false ? 'eligible' : 'not-eligible';
+        
         let actionsHtml = '';
         if (canManageRanks) {
             actionsHtml = `
                 <div class="member-actions">
-                    <button class="edit-btn" onclick="editMember(${member.id}, '${escapeHtml(member.name)}', '${escapeHtml(member.rank)}')">Edit</button>
+                    <button class="edit-btn" onclick="editMember(${member.id}, '${escapeHtml(member.name)}', '${escapeHtml(member.rank)}', ${member.eligible !== false})">Edit</button>
                     <button class="delete-btn" onclick="deleteMember(${member.id}, '${escapeHtml(member.name)}')">Delete</button>
                     ${isR5OrAdmin ? `<button class="create-user-btn" onclick="createUserForMember(${member.id}, '${escapeHtml(member.name)}')">Create User</button>` : ''}
+                    <button class="toggle-eligible-btn ${eligibleClass}" onclick="toggleEligible(${member.id}, ${member.eligible !== false})">${eligibleStatus}</button>
                 </div>
             `;
         }
@@ -110,6 +114,7 @@ function displayMembers(members) {
                 <div class="member-info">
                     <div class="member-name">${escapeHtml(member.name)}</div>
                     <span class="member-rank rank-${member.rank.replace(/\s+/g, '-')}">${escapeHtml(member.rank)}</span>
+                    <span class="member-eligible ${eligibleClass}">${eligibleStatus}</span>
                 </div>
                 ${actionsHtml}
             </div>
@@ -136,6 +141,7 @@ document.getElementById('member-form').addEventListener('submit', async (e) => {
     
     const name = document.getElementById('member-name').value.trim();
     const rank = document.getElementById('member-rank').value;
+    const eligible = document.getElementById('member-eligible').checked;
     
     if (!name || !rank) {
         alert('Please fill in all fields');
@@ -150,7 +156,7 @@ document.getElementById('member-form').addEventListener('submit', async (e) => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ name, rank }),
+                body: JSON.stringify({ name, rank, eligible }),
             });
 
             if (!response.ok) throw new Error('Failed to update member');
@@ -166,7 +172,7 @@ document.getElementById('member-form').addEventListener('submit', async (e) => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ name, rank }),
+                body: JSON.stringify({ name, rank, eligible }),
             });
 
             if (!response.ok) {
@@ -188,7 +194,7 @@ document.getElementById('member-form').addEventListener('submit', async (e) => {
 });
 
 // Edit a member
-function editMember(id, name, rank) {
+function editMember(id, name, rank, eligible) {
     if (!canManageRanks) {
         alert('You do not have permission to edit members. Only R4 and R5 can do this.');
         return;
@@ -197,6 +203,7 @@ function editMember(id, name, rank) {
     editingMemberId = id;
     document.getElementById('member-name').value = name;
     document.getElementById('member-rank').value = rank;
+    document.getElementById('member-eligible').checked = eligible;
     document.getElementById('form-title').textContent = 'Edit Member';
     document.getElementById('submit-btn').textContent = 'Update Member';
     document.getElementById('cancel-btn').style.display = 'inline-block';
@@ -209,6 +216,7 @@ function editMember(id, name, rank) {
 document.getElementById('cancel-btn').addEventListener('click', () => {
     editingMemberId = null;
     document.getElementById('member-form').reset();
+    document.getElementById('member-eligible').checked = true; // Reset to eligible by default
     document.getElementById('form-title').textContent = 'Add New Member';
     document.getElementById('submit-btn').textContent = 'Add Member';
     document.getElementById('cancel-btn').style.display = 'none';
@@ -678,3 +686,49 @@ async function createUserForMember(memberId, memberName) {
     }
 }
 
+// Toggle member eligibility for train
+async function toggleEligible(id, currentStatus) {
+    if (!canManageRanks) {
+        alert('You do not have permission to manage members. Only R4 and R5 can do this.');
+        return;
+    }
+    
+    const newStatus = !currentStatus;
+    const statusText = newStatus ? 'eligible' : 'not eligible';
+    
+    if (!confirm(`Mark this member as ${statusText} for train scheduling?`)) {
+        return;
+    }
+    
+    try {
+        // Get current member data
+        const response = await fetch(`${API_URL}`);
+        if (!response.ok) throw new Error('Failed to fetch members');
+        
+        const members = await response.json();
+        const member = members.find(m => m.id === id);
+        
+        if (!member) throw new Error('Member not found');
+        
+        // Update member with new eligible status
+        const updateResponse = await fetch(`${API_URL}/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                name: member.name, 
+                rank: member.rank,
+                eligible: newStatus 
+            }),
+        });
+        
+        if (!updateResponse.ok) throw new Error('Failed to update member');
+        
+        // Reload members list
+        loadMembers();
+    } catch (error) {
+        console.error('Error toggling eligibility:', error);
+        alert('Failed to update member eligibility: ' + error.message);
+    }
+}

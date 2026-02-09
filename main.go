@@ -23,9 +23,10 @@ import (
 )
 
 type Member struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-	Rank string `json:"rank"`
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	Rank     string `json:"rank"`
+	Eligible bool   `json:"eligible"`
 }
 
 type MemberStats struct {
@@ -607,7 +608,8 @@ func initDB() error {
 	createMembersTableSQL := `CREATE TABLE IF NOT EXISTS members (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
-		rank TEXT NOT NULL
+		rank TEXT NOT NULL,
+		eligible BOOLEAN NOT NULL DEFAULT 1
 	);`
 
 	_, err = db.Exec(createMembersTableSQL)
@@ -1181,7 +1183,7 @@ func checkAuth(w http.ResponseWriter, r *http.Request) {
 
 // Get all members
 func getMembers(w http.ResponseWriter, r *http.Request) {
-	rows, err := db.Query("SELECT id, name, rank FROM members ORDER BY name")
+	rows, err := db.Query("SELECT id, name, rank, COALESCE(eligible, 1) FROM members ORDER BY name")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1191,7 +1193,7 @@ func getMembers(w http.ResponseWriter, r *http.Request) {
 	members := []Member{}
 	for rows.Next() {
 		var m Member
-		if err := rows.Scan(&m.ID, &m.Name, &m.Rank); err != nil {
+		if err := rows.Scan(&m.ID, &m.Name, &m.Rank, &m.Eligible); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -1251,7 +1253,12 @@ func createMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := db.Exec("INSERT INTO members (name, rank) VALUES (?, ?)", m.Name, m.Rank)
+	// Default to eligible if not specified
+	if !m.Eligible {
+		m.Eligible = true
+	}
+
+	result, err := db.Exec("INSERT INTO members (name, rank, eligible) VALUES (?, ?, ?)", m.Name, m.Rank, m.Eligible)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1280,7 +1287,7 @@ func updateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = db.Exec("UPDATE members SET name = ?, rank = ? WHERE id = ?", m.Name, m.Rank, id)
+	_, err = db.Exec("UPDATE members SET name = ?, rank = ?, eligible = ? WHERE id = ?", m.Name, m.Rank, m.Eligible, id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1513,8 +1520,8 @@ func autoSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get all members
-	rows, err := db.Query("SELECT id, name, rank FROM members ORDER BY name")
+	// Get all eligible members
+	rows, err := db.Query("SELECT id, name, rank, COALESCE(eligible, 1) FROM members WHERE COALESCE(eligible, 1) = 1 ORDER BY name")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1524,7 +1531,7 @@ func autoSchedule(w http.ResponseWriter, r *http.Request) {
 	var candidates []Member
 	for rows.Next() {
 		var m Member
-		if err := rows.Scan(&m.ID, &m.Name, &m.Rank); err != nil {
+		if err := rows.Scan(&m.ID, &m.Name, &m.Rank, &m.Eligible); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
