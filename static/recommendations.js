@@ -139,13 +139,16 @@ function renderRecommendations() {
         const canDelete = rec.recommended_by === currentUsername;
         const date = new Date(rec.created_at);
         const formattedDate = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        const expiredClass = rec.expired ? ' expired' : '';
+        const expiredBadge = rec.expired ? '<span class="expired-badge">✓ Assigned</span>' : '';
         
         html += `
-            <div class="recommendation-card">
+            <div class="recommendation-card${expiredClass}">
                 <div class="recommendation-header">
                     <div class="recommendation-member">
                         <span class="member-name">${escapeHtml(rec.member_name)}</span>
                         <span class="member-rank rank-${rec.member_rank}">${rec.member_rank}</span>
+                        ${expiredBadge}
                     </div>
                     ${canDelete ? `<button class="delete-btn" onclick="deleteRecommendation(${rec.id})">🗑️ Delete</button>` : ''}
                 </div>

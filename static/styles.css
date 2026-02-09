@@ -1661,9 +1661,19 @@ button {
     transition: all 0.3s;
 }
 
+.recommendation-card.expired {
+    opacity: 0.7;
+    background: #f8f9fa;
+    border-color: #28a745;
+}
+
 .recommendation-card:hover {
     border-color: #667eea;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.recommendation-card.expired:hover {
+    border-color: #28a745;
 }
 
 .recommendation-header {
@@ -1679,6 +1689,16 @@ button {
     display: flex;
     align-items: center;
     gap: 10px;
+    flex-wrap: wrap;
+}
+
+.expired-badge {
+    padding: 4px 10px;
+    background: #28a745;
+    color: white;
+    font-size: 0.75em;
+    border-radius: 12px;
+    font-weight: 600;
 }
 
 .member-name {

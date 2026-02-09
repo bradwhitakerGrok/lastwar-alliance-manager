@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"math/big"
 	"net/http"
 	"os"
@@ -84,6 +85,7 @@ type Recommendation struct {
 	RecommendedByID int    `json:"recommended_by_id"`
 	Notes           string `json:"notes"`
 	CreatedAt       string `json:"created_at"`
+	Expired         bool   `json:"expired"`
 }
 
 type WeekAwards struct {
@@ -344,11 +346,12 @@ func loadSettings() (Settings, error) {
 	return settings, err
 }
 
-// loadRecommendations loads recommendation counts for all members
+// loadRecommendations loads recommendation counts for all members (non-expired only)
 func loadRecommendations() (map[int]int, error) {
 	rows, err := db.Query(`
 		SELECT member_id, COUNT(*) as rec_count
 		FROM recommendations
+		WHERE expired = 0
 		GROUP BY member_id
 	`)
 	if err != nil {
@@ -367,13 +370,25 @@ func loadRecommendations() (map[int]int, error) {
 	return recommendationMap, nil
 }
 
-// loadAwards loads award scores for all members from a specific week
-func loadAwards(weekDate string, settings Settings) (map[int]int, error) {
+// expireRecommendationsForMember marks all recommendations for a member as expired
+func expireRecommendationsForMember(memberID int) error {
+	_, err := db.Exec(`UPDATE recommendations SET expired = 1 WHERE member_id = ? AND expired = 0`, memberID)
+	return err
+}
+
+// expireAwardsForMember marks all awards for a member as expired
+func expireAwardsForMember(memberID int) error {
+	_, err := db.Exec(`UPDATE awards SET expired = 1 WHERE member_id = ? AND expired = 0`, memberID)
+	return err
+}
+
+// loadAwards loads award scores for all members from all non-expired awards
+func loadAwards(settings Settings) (map[int]int, error) {
 	rows, err := db.Query(`
 		SELECT member_id, rank
 		FROM awards
-		WHERE week_date = ?
-	`, weekDate)
+		WHERE expired = 0
+	`)
 	if err != nil {
 		return nil, err
 	}
@@ -487,11 +502,8 @@ func buildRankingContext(referenceDate time.Time) (*RankingContext, error) {
 		return nil, err
 	}
 
-	// Get awards from previous week (Monday of reference week - 7 days)
-	weekStart := getMondayOfWeek(referenceDate)
-	prevWeek := weekStart.AddDate(0, 0, -7)
-	prevWeekStr := formatDateString(prevWeek)
-	awardScoreMap, err := loadAwards(prevWeekStr, settings)
+	// Get all non-expired awards (stacks up over multiple weeks)
+	awardScoreMap, err := loadAwards(settings)
 	if err != nil {
 		return nil, err
 	}
@@ -515,8 +527,14 @@ func buildRankingContext(referenceDate time.Time) (*RankingContext, error) {
 func calculateMemberScore(member Member, ctx *RankingContext) int {
 	score := 0
 
-	// Add recommendation points
-	score += ctx.RecommendationMap[member.ID] * ctx.Settings.RecommendationPoints
+	// Add recommendation points with non-linear scaling (diminishing returns)
+	recCount := ctx.RecommendationMap[member.ID]
+	if recCount > 0 {
+		// Formula: 5 + 5 * sqrt(recCount) rounded to nearest int
+		// This gives: 1 rec = 10pts, 2 recs = 12pts, 3 recs = 14pts, 4 recs = 15pts
+		recPoints := 5.0 + 5.0*math.Sqrt(float64(recCount))
+		score += int(math.Round(recPoints))
+	}
 
 	// Add award points
 	score += ctx.AwardScoreMap[member.ID]
@@ -659,6 +677,7 @@ func initDB() error {
 		rank INTEGER NOT NULL,
 		member_id INTEGER NOT NULL,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		expired BOOLEAN DEFAULT 0,
 		FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
 		UNIQUE(week_date, award_type, rank)
 	);`
@@ -668,6 +687,24 @@ func initDB() error {
 		return err
 	}
 
+	// Migrate existing awards table to add expired column if missing
+	err = db.QueryRow(`
+		SELECT COUNT(*) > 0
+		FROM pragma_table_info('awards')
+		WHERE name = 'expired'
+	`).Scan(&columnExists)
+	if err != nil {
+		return err
+	}
+
+	if !columnExists {
+		_, err = db.Exec(`ALTER TABLE awards ADD COLUMN expired BOOLEAN DEFAULT 0`)
+		if err != nil {
+			return err
+		}
+		log.Println("Database migration: Added expired column to awards table")
+	}
+
 	// Create recommendations table
 	createRecommendationsSQL := `CREATE TABLE IF NOT EXISTS recommendations (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -675,6 +712,7 @@ func initDB() error {
 		recommended_by_id INTEGER NOT NULL,
 		notes TEXT,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		expired BOOLEAN DEFAULT 0,
 		FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
 		FOREIGN KEY (recommended_by_id) REFERENCES users(id) ON DELETE CASCADE
 	);`
@@ -682,6 +720,24 @@ func initDB() error {
 	_, err = db.Exec(createRecommendationsSQL)
 	if err != nil {
 		return err
+	}
+
+	// Migrate existing recommendations table to add expired column if missing
+	err = db.QueryRow(`
+		SELECT COUNT(*) > 0
+		FROM pragma_table_info('recommendations')
+		WHERE name = 'expired'
+	`).Scan(&columnExists)
+	if err != nil {
+		return err
+	}
+
+	if !columnExists {
+		_, err = db.Exec(`ALTER TABLE recommendations ADD COLUMN expired BOOLEAN DEFAULT 0`)
+		if err != nil {
+			return err
+		}
+		log.Println("Database migration: Added expired column to recommendations table")
 	}
 
 	// Create settings table
@@ -1386,6 +1442,22 @@ func createTrainSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Expire recommendations for conductor and backup
+	if err := expireRecommendationsForMember(ts.ConductorID); err != nil {
+		log.Printf("Warning: Failed to expire recommendations for conductor %d: %v", ts.ConductorID, err)
+	}
+	if err := expireRecommendationsForMember(ts.BackupID); err != nil {
+		log.Printf("Warning: Failed to expire recommendations for backup %d: %v", ts.BackupID, err)
+	}
+
+	// Expire awards for conductor and backup
+	if err := expireAwardsForMember(ts.ConductorID); err != nil {
+		log.Printf("Warning: Failed to expire awards for conductor %d: %v", ts.ConductorID, err)
+	}
+	if err := expireAwardsForMember(ts.BackupID); err != nil {
+		log.Printf("Warning: Failed to expire awards for backup %d: %v", ts.BackupID, err)
+	}
+
 	id, _ := result.LastInsertId()
 	ts.ID = int(id)
 
@@ -1406,6 +1478,14 @@ func updateTrainSchedule(w http.ResponseWriter, r *http.Request) {
 	var ts TrainSchedule
 	if err := json.NewDecoder(r.Body).Decode(&ts); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Get existing schedule to check if conductor or backup changed
+	var existingConductorID, existingBackupID int
+	err = db.QueryRow("SELECT conductor_id, backup_id FROM train_schedules WHERE id = ?", id).Scan(&existingConductorID, &existingBackupID)
+	if err != nil {
+		http.Error(w, "Schedule not found", http.StatusNotFound)
 		return
 	}
 
@@ -1430,6 +1510,24 @@ func updateTrainSchedule(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Expire recommendations if conductor or backup changed
+	if ts.ConductorID != existingConductorID {
+		if err := expireRecommendationsForMember(ts.ConductorID); err != nil {
+			log.Printf("Warning: Failed to expire recommendations for conductor %d: %v", ts.ConductorID, err)
+		}
+		if err := expireAwardsForMember(ts.ConductorID); err != nil {
+			log.Printf("Warning: Failed to expire awards for conductor %d: %v", ts.ConductorID, err)
+		}
+	}
+	if ts.BackupID != existingBackupID {
+		if err := expireRecommendationsForMember(ts.BackupID); err != nil {
+			log.Printf("Warning: Failed to expire recommendations for backup %d: %v", ts.BackupID, err)
+		}
+		if err := expireAwardsForMember(ts.BackupID); err != nil {
+			log.Printf("Warning: Failed to expire awards for backup %d: %v", ts.BackupID, err)
+		}
 	}
 
 	ts.ID = id
@@ -1927,7 +2025,8 @@ func getRecommendations(w http.ResponseWriter, r *http.Request) {
 			u.username,
 			rec.recommended_by_id,
 			COALESCE(rec.notes, ''),
-			rec.created_at
+			rec.created_at,
+			COALESCE(rec.expired, 0)
 		FROM recommendations rec
 		JOIN members m ON rec.member_id = m.id
 		JOIN users u ON rec.recommended_by_id = u.id
@@ -1943,7 +2042,7 @@ func getRecommendations(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var rec Recommendation
 		if err := rows.Scan(&rec.ID, &rec.MemberID, &rec.MemberName, &rec.MemberRank,
-			&rec.RecommendedBy, &rec.RecommendedByID, &rec.Notes, &rec.CreatedAt); err != nil {
+			&rec.RecommendedBy, &rec.RecommendedByID, &rec.Notes, &rec.CreatedAt, &rec.Expired); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -2004,13 +2103,14 @@ func createRecommendation(w http.ResponseWriter, r *http.Request) {
 			u.username,
 			rec.recommended_by_id,
 			COALESCE(rec.notes, ''),
-			rec.created_at
+			rec.created_at,
+			COALESCE(rec.expired, 0)
 		FROM recommendations rec
 		JOIN members m ON rec.member_id = m.id
 		JOIN users u ON rec.recommended_by_id = u.id
 		WHERE rec.id = ?
 	`, id).Scan(&rec.ID, &rec.MemberID, &rec.MemberName, &rec.MemberRank,
-		&rec.RecommendedBy, &rec.RecommendedByID, &rec.Notes, &rec.CreatedAt)
+		&rec.RecommendedBy, &rec.RecommendedByID, &rec.Notes, &rec.CreatedAt, &rec.Expired)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
