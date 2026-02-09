@@ -2249,8 +2249,7 @@ func updateSettings(w http.ResponseWriter, r *http.Request) {
 
 // Get member rankings with detailed score breakdown
 func getMemberRankings(w http.ResponseWriter, r *http.Request) {
-	// Check if inactive awards should be included
-	includeInactive := r.URL.Query().Get("include_inactive") == "true"
+	// Always include all awards (active and inactive) - filtering is done on client side
 
 	// Build ranking context using current date
 	now := time.Now()
@@ -2278,45 +2277,24 @@ func getMemberRankings(w http.ResponseWriter, r *http.Request) {
 		members = append(members, m)
 	}
 
-	// Load award details - include expired if requested
-	var awardQuery string
-	if includeInactive {
-		// Include all awards with expired flag
-		awardQuery = `
-			SELECT 
-				a.member_id, 
-				a.award_type, 
-				a.rank, 
-				a.week_date,
-				CASE 
-					WHEN EXISTS (
-						SELECT 1 FROM train_schedules ts
-						WHERE (ts.conductor_id = a.member_id OR (ts.backup_id = a.member_id AND ts.conductor_showed_up = 0))
-						AND ts.date >= a.week_date
-					) THEN 1
-					ELSE 0
-				END as expired
-			FROM awards a
-			ORDER BY a.week_date DESC, a.rank ASC
-		`
-	} else {
-		// Only active awards
-		awardQuery = `
-			SELECT 
-				a.member_id, 
-				a.award_type, 
-				a.rank, 
-				a.week_date,
-				0 as expired
-			FROM awards a
-			WHERE NOT EXISTS (
-				SELECT 1 FROM train_schedules ts
-				WHERE (ts.conductor_id = a.member_id OR (ts.backup_id = a.member_id AND ts.conductor_showed_up = 0))
-				AND ts.date >= a.week_date
-			)
-			ORDER BY a.week_date DESC, a.rank ASC
-		`
-	}
+	// Load all award details with expired flag
+	awardQuery := `
+		SELECT 
+			a.member_id, 
+			a.award_type, 
+			a.rank, 
+			a.week_date,
+			CASE 
+				WHEN EXISTS (
+					SELECT 1 FROM train_schedules ts
+					WHERE (ts.conductor_id = a.member_id OR (ts.backup_id = a.member_id AND ts.conductor_showed_up = 0))
+					AND ts.date >= a.week_date
+				) THEN 1
+				ELSE 0
+			END as expired
+		FROM awards a
+		ORDER BY a.week_date DESC, a.rank ASC
+	`
 
 	awardRows, err := db.Query(awardQuery)
 	if err != nil {

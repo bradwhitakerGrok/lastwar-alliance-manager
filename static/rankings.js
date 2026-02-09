@@ -48,10 +48,7 @@ function formatDate(dateStr) {
 // Load rankings
 async function loadRankings() {
     try {
-        const showInactive = document.getElementById('show-inactive-awards')?.checked || false;
-        const url = showInactive ? `${RANKINGS_URL}?include_inactive=true` : RANKINGS_URL;
-        
-        const response = await fetch(url);
+        const response = await fetch(RANKINGS_URL);
         if (!response.ok) throw new Error('Failed to load rankings');
         
         currentData = await response.json();
@@ -257,10 +254,6 @@ async function createMemberTimelineCharts(rankings) {
     memberTimelineCharts.forEach(chart => chart.destroy());
     memberTimelineCharts = [];
     
-    const showReset = document.getElementById('show-reset')?.checked ?? true;
-    const showNoReset = document.getElementById('show-no-reset')?.checked ?? true;
-    const scaleType = document.querySelector('input[name="scale-type"]:checked')?.value || 'linear';
-    
     // Fetch timeline data for each member (last 3 months)
     try {
         const response = await fetch(`${API_BASE}/member-timelines?months=3`);
@@ -275,6 +268,11 @@ async function createMemberTimelineCharts(rankings) {
             
             const canvas = document.getElementById(`timeline-${ranking.member.id}`);
             if (!canvas) return;
+            
+            // Get member-specific settings
+            const showReset = document.getElementById(`show-reset-${ranking.member.id}`)?.checked ?? true;
+            const showNoReset = document.getElementById(`show-no-reset-${ranking.member.id}`)?.checked ?? true;
+            const scaleType = document.querySelector(`input[name="scale-type-${ranking.member.id}"]:checked`)?.value || 'linear';
             
             const ctx = canvas.getContext('2d');
             
@@ -440,13 +438,19 @@ function displayRankings(rankings) {
                     
                     ${ranking.award_details && ranking.award_details.length > 0 ? `
                         <div class="detail-section">
-                            <h5>🏆 Award Details (${ranking.award_details.filter(a => !a.expired).length} active${ranking.award_details.some(a => a.expired) ? `, ${ranking.award_details.filter(a => a.expired).length} inactive` : ''})</h5>
-                            <div class="awards-compact-list">
-                                ${ranking.award_details.map(award => `
-                                    <div class="award-compact-item ${award.expired ? 'expired-award' : ''}">
+                            <div class="section-header-with-toggle">
+                                <h5>🏆 Award Details (${ranking.award_details.filter(a => !a.expired).length} active${ranking.award_details.some(a => a.expired) ? `, ${ranking.award_details.filter(a => a.expired).length} inactive` : ''})</h5>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="show-inactive-${ranking.member.id}" class="show-inactive-toggle" data-member-id="${ranking.member.id}">
+                                    <span>Show Inactive Awards</span>
+                                </label>
+                            </div>
+                            <div class="awards-compact-list" id="awards-list-${ranking.member.id}">
+                                ${ranking.award_details.filter(a => !a.expired).map(award => `
+                                    <div class="award-compact-item">
                                         <span class="award-icon-compact">${getRankEmoji(award.rank)}</span>
                                         <div class="award-info-compact">
-                                            <span class="award-type-compact">${escapeHtml(award.award_type)}${award.expired ? ' (Expired)' : ''}</span>
+                                            <span class="award-type-compact">${escapeHtml(award.award_type)}</span>
                                             <span class="award-week-compact">${getWeeksAgo(award.week_date)}</span>
                                         </div>
                                         <span class="award-points-compact">+${award.points}</span>
@@ -483,6 +487,24 @@ function displayRankings(rankings) {
                     
                     <div class="detail-section">
                         <h5>📊 Point Accumulation Timeline (Last 3 Months)</h5>
+                        <div class="chart-options">
+                            <label>
+                                <input type="checkbox" id="show-reset-${ranking.member.id}" class="timeline-option" data-member-id="${ranking.member.id}" checked>
+                                <span>Show with Train Resets</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="show-no-reset-${ranking.member.id}" class="timeline-option" data-member-id="${ranking.member.id}" checked>
+                                <span>Show without Resets (Cumulative)</span>
+                            </label>
+                            <label>
+                                <input type="radio" name="scale-type-${ranking.member.id}" class="timeline-option" data-member-id="${ranking.member.id}" value="linear" checked>
+                                <span>Linear Scale</span>
+                            </label>
+                            <label>
+                                <input type="radio" name="scale-type-${ranking.member.id}" class="timeline-option" data-member-id="${ranking.member.id}" value="logarithmic">
+                                <span>Logarithmic Scale</span>
+                            </label>
+                        </div>
                         <canvas id="timeline-${ranking.member.id}" class="member-timeline-canvas"></canvas>
                     </div>
                 </div>
@@ -492,24 +514,61 @@ function displayRankings(rankings) {
     
     document.getElementById('rankings-list').innerHTML = html;
     
+    // Add event listeners for timeline options (per member)
+    document.querySelectorAll('.timeline-option').forEach(element => {
+        element.addEventListener('change', () => {
+            if (currentData) displayCharts(currentData);
+        });
+    });
+    
+    // Add event listeners for show inactive awards toggle (per member)
+    document.querySelectorAll('.show-inactive-toggle').forEach(checkbox => {
+        checkbox.addEventListener('change', (e) => {
+            const memberId = parseInt(e.target.dataset.memberId);
+            toggleInactiveAwards(memberId, e.target.checked);
+        });
+    });
+    
     // Create timeline charts after rendering rankings
     createMemberTimelineCharts(filteredRankings);
 }
 
-// Event listeners for chart options
-document.getElementById('show-reset')?.addEventListener('change', () => {
-    if (currentData) displayCharts(currentData);
-});
+// Toggle inactive awards for a specific member
+function toggleInactiveAwards(memberId, showInactive) {
+    const ranking = filteredRankings.find(r => r.member.id === memberId);
+    if (!ranking || !ranking.award_details) return;
+    
+    const awardsList = document.getElementById(`awards-list-${memberId}`);
+    if (!awardsList) return;
+    
+    if (showInactive) {
+        // Show all awards including inactive
+        awardsList.innerHTML = ranking.award_details.map(award => `
+            <div class="award-compact-item ${award.expired ? 'expired-award' : ''}">
+                <span class="award-icon-compact">${getRankEmoji(award.rank)}</span>
+                <div class="award-info-compact">
+                    <span class="award-type-compact">${escapeHtml(award.award_type)}${award.expired ? ' (Expired)' : ''}</span>
+                    <span class="award-week-compact">${getWeeksAgo(award.week_date)}</span>
+                </div>
+                <span class="award-points-compact">+${award.points}</span>
+            </div>
+        `).join('');
+    } else {
+        // Show only active awards
+        awardsList.innerHTML = ranking.award_details.filter(a => !a.expired).map(award => `
+            <div class="award-compact-item">
+                <span class="award-icon-compact">${getRankEmoji(award.rank)}</span>
+                <div class="award-info-compact">
+                    <span class="award-type-compact">${escapeHtml(award.award_type)}</span>
+                    <span class="award-week-compact">${getWeeksAgo(award.week_date)}</span>
+                </div>
+                <span class="award-points-compact">+${award.points}</span>
+            </div>
+        `).join('');
+    }
+}
 
-document.getElementById('show-no-reset')?.addEventListener('change', () => {
-    if (currentData) displayCharts(currentData);
-});
-
-document.querySelectorAll('input[name="scale-type"]').forEach(radio => {
-    radio.addEventListener('change', () => {
-        if (currentData) displayCharts(currentData);
-    });
-});
+// Event listeners for chart options (removed global listeners, now per-member)
 
 // Get rank emoji
 function getRankEmoji(rank) {
@@ -579,7 +638,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Add filter event listeners
         document.getElementById('filter-name').addEventListener('input', filterRankings);
         document.getElementById('filter-rank').addEventListener('change', filterRankings);
-        document.getElementById('show-inactive-awards')?.addEventListener('change', loadRankings);
         document.getElementById('clear-filters-btn').addEventListener('click', clearFilters);
     }
 });
