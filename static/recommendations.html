@@ -29,6 +29,40 @@
         </nav>
 
         <main>
+            <section class="stats-dashboard">
+                <h3>📊 Recommendation Statistics</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">⭐</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="total-recommendations">0</div>
+                            <div class="stat-label">Total Active</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">👥</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="members-recommended">0</div>
+                            <div class="stat-label">Members Recommended</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🏆</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="top-recommended">-</div>
+                            <div class="stat-label">Most Recommended</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">✓</div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="assigned-count">0</div>
+                            <div class="stat-label">Assigned</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <section class="recommendation-form-section">
                 <h3>➕ Recommend a Member for Train Conductor</h3>
                 <div class="recommendation-form">
@@ -48,9 +82,21 @@
             </section>
 
             <section class="recommendations-list-section">
-                <h3>📋 Current Recommendations</h3>
+                <div class="section-header-controls">
+                    <h3>📋 Current Recommendations</h3>
+                    <div class="view-toggle">
+                        <button class="toggle-btn active" data-view="list" id="list-view-btn">📄 List View</button>
+                        <button class="toggle-btn" data-view="grouped" id="grouped-view-btn">👥 Grouped by Member</button>
+                    </div>
+                </div>
                 <div class="filter-section">
                     <input type="text" id="filter-search" class="search-box" placeholder="🔍 Filter by member or recommender...">
+                    <div class="filter-buttons">
+                        <button class="filter-chip active" data-filter="all">All</button>
+                        <button class="filter-chip" data-filter="active">Active Only</button>
+                        <button class="filter-chip" data-filter="assigned">Assigned</button>
+                        <button class="filter-chip" data-filter="mine">My Recommendations</button>
+                    </div>
                 </div>
                 <div id="recommendations-list" class="recommendations-list">
                     <!-- Recommendations will be loaded here -->

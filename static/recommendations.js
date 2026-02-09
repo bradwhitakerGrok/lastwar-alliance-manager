@@ -5,6 +5,8 @@ let allMembers = [];
 let allRecommendations = [];
 let currentUsername = '';
 let currentUserId = 0;
+let currentView = 'list'; // 'list' or 'grouped'
+let currentFilter = 'all'; // 'all', 'active', 'assigned', 'mine'
 
 // Check authentication
 async function checkAuth() {
@@ -111,6 +113,7 @@ async function loadRecommendations() {
     try {
         const response = await fetch(API_URL);
         allRecommendations = await response.json();
+        updateStatistics();
         renderRecommendations();
     } catch (error) {
         console.error('Error loading recommendations:', error);
@@ -118,15 +121,52 @@ async function loadRecommendations() {
     }
 }
 
+// Update statistics dashboard
+function updateStatistics() {
+    const active = allRecommendations.filter(r => !r.expired);
+    const assigned = allRecommendations.filter(r => r.expired);
+    
+    // Count unique members recommended
+    const uniqueMembers = new Set(active.map(r => r.member_id));
+    
+    // Find most recommended member (active only)
+    const memberCounts = {};
+    active.forEach(rec => {
+        memberCounts[rec.member_name] = (memberCounts[rec.member_name] || 0) + 1;
+    });
+    
+    const topMember = Object.entries(memberCounts).sort((a, b) => b[1] - a[1])[0];
+    const topMemberText = topMember ? `${topMember[0]} (${topMember[1]})` : '-';
+    
+    document.getElementById('total-recommendations').textContent = active.length;
+    document.getElementById('members-recommended').textContent = uniqueMembers.size;
+    document.getElementById('top-recommended').textContent = topMemberText;
+    document.getElementById('assigned-count').textContent = assigned.length;
+}
+
 // Render recommendations
 function renderRecommendations() {
     const container = document.getElementById('recommendations-list');
     const filterSearch = document.getElementById('filter-search').value.toLowerCase();
     
-    const filtered = allRecommendations.filter(rec => {
+    // Apply filter
+    let filtered = allRecommendations.filter(rec => {
         const memberMatch = rec.member_name.toLowerCase().includes(filterSearch);
         const recommenderMatch = rec.recommended_by.toLowerCase().includes(filterSearch);
-        return memberMatch || recommenderMatch;
+        const textMatch = memberMatch || recommenderMatch;
+        
+        if (!textMatch) return false;
+        
+        switch (currentFilter) {
+            case 'active':
+                return !rec.expired;
+            case 'assigned':
+                return rec.expired;
+            case 'mine':
+                return rec.recommended_by === currentUsername;
+            default:
+                return true;
+        }
     });
     
     if (filtered.length === 0) {
@@ -134,13 +174,22 @@ function renderRecommendations() {
         return;
     }
     
+    if (currentView === 'grouped') {
+        renderGroupedView(filtered, container);
+    } else {
+        renderListView(filtered, container);
+    }
+}
+
+// Render list view
+function renderListView(recommendations, container) {
     let html = '';
-    filtered.forEach(rec => {
+    recommendations.forEach(rec => {
         const canDelete = rec.recommended_by === currentUsername;
         const date = new Date(rec.created_at);
         const formattedDate = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
         const expiredClass = rec.expired ? ' expired' : '';
-        const expiredBadge = rec.expired ? '<span class="expired-badge">✓ Assigned</span>' : '';
+        const expiredBadge = rec.expired ? '<span class="expired-badge">✓ Assigned</span>' : '<span class="active-badge">⭐ Active</span>';
         
         html += `
             <div class="recommendation-card${expiredClass}">
@@ -158,6 +207,69 @@ function renderRecommendations() {
                         <span class="recommendation-date">📅 ${formattedDate}</span>
                     </div>
                     ${rec.notes ? `<div class="recommendation-notes">${escapeHtml(rec.notes)}</div>` : ''}
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// Render grouped view (by member)
+function renderGroupedView(recommendations, container) {
+    // Group by member
+    const grouped = {};
+    recommendations.forEach(rec => {
+        if (!grouped[rec.member_id]) {
+            grouped[rec.member_id] = {
+                member_name: rec.member_name,
+                member_rank: rec.member_rank,
+                recommendations: []
+            };
+        }
+        grouped[rec.member_id].recommendations.push(rec);
+    });
+    
+    // Sort by count (descending)
+    const sortedGroups = Object.values(grouped).sort((a, b) => 
+        b.recommendations.length - a.recommendations.length
+    );
+    
+    let html = '';
+    sortedGroups.forEach(group => {
+        const activeCount = group.recommendations.filter(r => !r.expired).length;
+        const assignedCount = group.recommendations.filter(r => r.expired).length;
+        
+        html += `
+            <div class="grouped-card">
+                <div class="grouped-header">
+                    <div class="grouped-member-info">
+                        <span class="member-name-large">${escapeHtml(group.member_name)}</span>
+                        <span class="member-rank rank-${group.member_rank}">${group.member_rank}</span>
+                    </div>
+                    <div class="grouped-badges">
+                        ${activeCount > 0 ? `<span class="count-badge active-count">${activeCount} Active</span>` : ''}
+                        ${assignedCount > 0 ? `<span class="count-badge assigned-count">${assignedCount} Assigned</span>` : ''}
+                    </div>
+                </div>
+                <div class="grouped-recommendations">
+                    ${group.recommendations.map(rec => {
+                        const canDelete = rec.recommended_by === currentUsername;
+                        const date = new Date(rec.created_at);
+                        const formattedDate = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+                        const expiredClass = rec.expired ? 'expired-rec' : 'active-rec';
+                        
+                        return `
+                            <div class="recommendation-item ${expiredClass}">
+                                <div class="rec-item-header">
+                                    <span class="rec-by">👤 ${escapeHtml(rec.recommended_by)}</span>
+                                    <span class="rec-date">📅 ${formattedDate}</span>
+                                    ${canDelete ? `<button class="delete-btn-small" onclick="deleteRecommendation(${rec.id})">🗑️</button>` : ''}
+                                </div>
+                                ${rec.notes ? `<div class="rec-notes-small">${escapeHtml(rec.notes)}</div>` : ''}
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
             </div>
         `;
@@ -248,5 +360,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Set up event listeners
         document.getElementById('submit-recommendation-btn').addEventListener('click', submitRecommendation);
         document.getElementById('filter-search').addEventListener('input', renderRecommendations);
+        
+        // View toggle buttons
+        document.querySelectorAll('.toggle-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentView = btn.dataset.view;
+                renderRecommendations();
+            });
+        });
+        
+        // Filter chips
+        document.querySelectorAll('.filter-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+                currentFilter = chip.dataset.filter;
+                renderRecommendations();
+            });
+        });
     }
 });
