@@ -9,6 +9,48 @@ body {
     background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
     min-height: 100vh;
     padding: 20px;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Touch-friendly improvements */
+button,
+a,
+input,
+select,
+textarea {
+    -webkit-tap-highlight-color: rgba(102, 126, 234, 0.3);
+}
+
+/* Prevent text selection on interactive elements */
+button,
+.nav-link,
+.member-card button,
+.award-card button {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Improve touch target sizes for mobile */
+@media (hover: none) and (pointer: coarse) {
+    button,
+    a,
+    input[type="checkbox"],
+    input[type="radio"],
+    select {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    
+    .nav-link {
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 }
 
 .container {
@@ -406,28 +448,274 @@ button {
     font-size: 1.1em;
 }
 
-@media (max-width: 768px) {
+/* ===== MOBILE RESPONSIVE STYLES ===== */
+
+/* Tablet and below */
+@media (max-width: 1024px) {
+    body {
+        padding: 10px;
+    }
+
+    .container {
+        border-radius: 10px;
+    }
+
+    header {
+        padding: 20px 15px;
+    }
+
     header h1 {
-        font-size: 1.8em;
+        font-size: 2em;
     }
 
     header h2 {
-        font-size: 1em;
+        font-size: 1.1em;
     }
 
-    .member-card {
-        flex-direction: column;
-        align-items: flex-start;
+    main {
+        padding: 20px;
+    }
+}
+
+/* Mobile devices */
+@media (max-width: 768px) {
+    body {
+        padding: 5px;
     }
 
-    .member-actions {
+    .container {
+        border-radius: 8px;
+    }
+
+    /* Header adjustments */
+    header {
+        padding: 15px 10px 50px 10px;
+    }
+
+    header h1 {
+        font-size: 1.5em;
+        margin-bottom: 5px;
+    }
+
+    header h2 {
+        font-size: 0.9em;
+    }
+
+    /* User info - move below header */
+    .user-info {
+        position: static;
+        width: 100%;
+        justify-content: center;
         margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    #username-display {
+        font-size: 0.85em;
+        padding: 6px 12px;
+    }
+
+    .logout-btn {
+        font-size: 0.85em;
+        padding: 6px 15px;
+    }
+
+    /* Navigation menu - make scrollable */
+    .nav-menu {
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+
+    .nav-link {
+        display: inline-block;
+        padding: 12px 15px;
+        font-size: 0.9em;
+        min-width: fit-content;
+    }
+
+    /* Main content */
+    main {
+        padding: 15px 10px;
+    }
+
+    /* Form sections */
+    .form-section {
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+
+    .form-section h3 {
+        font-size: 1.2em;
+        margin-bottom: 15px;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-group label {
+        font-size: 0.95em;
+    }
+
+    .form-group input,
+    .form-group select {
+        padding: 10px;
+        font-size: 16px; /* Prevent zoom on iOS */
+    }
+
+    /* Button adjustments */
+    button {
+        padding: 10px 20px;
+        font-size: 15px;
+    }
+
+    .button-group {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    #submit-btn,
+    #cancel-btn {
         width: 100%;
     }
 
+    /* Member cards */
+    .member-card {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 15px;
+    }
+
+    .member-info {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .member-name {
+        font-size: 1.1em;
+        margin-bottom: 8px;
+    }
+
+    .member-rank {
+        font-size: 0.85em;
+        padding: 4px 12px;
+    }
+
+    .member-eligible {
+        display: block;
+        margin-left: 0;
+        margin-top: 8px;
+        width: fit-content;
+    }
+
+    .member-actions {
+        margin-top: 10px;
+        width: 100%;
+        gap: 8px;
+    }
+
     .edit-btn,
-    .delete-btn {
+    .delete-btn,
+    .create-user-btn {
         flex: 1;
+        min-width: 0;
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+
+    .toggle-eligible-btn {
+        width: 100%;
+        margin-top: 5px;
+    }
+
+    /* Search box */
+    .search-box {
+        margin-bottom: 15px;
+    }
+
+    #search-input {
+        font-size: 16px; /* Prevent zoom on iOS */
+    }
+
+    /* CSV Import section */
+    .csv-upload {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    #csv-file {
+        width: 100%;
+    }
+
+    .import-btn {
+        width: 100%;
+        padding: 12px;
+    }
+
+    /* Summary stats */
+    .summary-stats {
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        gap: 10px;
+        padding: 15px;
+    }
+
+    .stat-value {
+        font-size: 1.5em;
+    }
+
+    /* Loading and empty states */
+    .loading,
+    .empty {
+        padding: 30px 15px;
+        font-size: 1em;
+    }
+
+    /* Permission notice */
+    .permission-notice {
+        padding: 15px;
+        font-size: 0.95em;
+    }
+
+    .permission-notice p {
+        font-size: 1em;
+    }
+}
+
+/* Small mobile devices */
+@media (max-width: 480px) {
+    header h1 {
+        font-size: 1.3em;
+    }
+
+    header h2 {
+        font-size: 0.85em;
+    }
+
+    .nav-link {
+        padding: 10px 12px;
+        font-size: 0.85em;
+    }
+
+    .form-section h3 {
+        font-size: 1.1em;
+    }
+
+    .member-name {
+        font-size: 1em;
+    }
+
+    .member-actions {
+        flex-direction: column;
+    }
+
+    .edit-btn,
+    .delete-btn,
+    .create-user-btn {
+        width: 100%;
     }
 }
 
@@ -3491,7 +3779,9 @@ button {
     color: #667eea;
 }
 
+/* ===== ADDITIONAL MOBILE STYLES FOR ALL PAGES ===== */
 @media (max-width: 768px) {
+    /* File upload and preview styles */
     .file-previews {
         grid-template-columns: 1fr;
     }
@@ -3503,5 +3793,376 @@ button {
     
     .members-grid {
         grid-template-columns: 1fr;
+    }
+
+    /* Awards page mobile styles */
+    .awards-controls {
+        padding: 15px;
+    }
+
+    .awards-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .save-btn,
+    .clear-btn {
+        width: 100%;
+        padding: 12px;
+    }
+
+    .awards-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+
+    .award-card {
+        padding: 15px;
+    }
+
+    .award-header {
+        flex-wrap: wrap;
+    }
+
+    .inactive-awards-section {
+        padding: 15px;
+    }
+
+    .inactive-awards-chips {
+        gap: 8px;
+    }
+
+    .inactive-award-chip {
+        font-size: 13px;
+        padding: 6px 12px;
+    }
+
+    .awards-history-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .history-filters {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .history-search,
+    .week-filter {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .week-history {
+        padding: 15px;
+    }
+
+    /* Recommendations page mobile styles */
+    .recommendation-form-section {
+        padding: 15px;
+        margin: 15px 10px;
+    }
+
+    .recommendation-form {
+        padding: 15px;
+    }
+
+    .recommendation-card {
+        padding: 15px;
+    }
+
+    .recommendation-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .recommendation-member {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .member-name {
+        font-size: 1.1em;
+    }
+
+    .member-rank {
+        font-size: 0.8em;
+        padding: 4px 10px;
+    }
+
+    .recommendation-meta {
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .delete-btn {
+        width: 100%;
+        margin-top: 10px;
+    }
+
+    .delete-btn-small {
+        width: 100%;
+        padding: 8px;
+    }
+
+    .recommendations-list {
+        gap: 12px;
+    }
+
+    /* Rankings page mobile styles */
+    .rankings-section {
+        padding: 15px;
+    }
+
+    .rankings-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .rankings-controls select,
+    .rankings-controls button {
+        width: 100%;
+    }
+
+    .info-badge {
+        text-align: center;
+        margin: 10px 0;
+    }
+
+    .charts-section {
+        padding: 15px;
+    }
+
+    .charts-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    .rankings-list {
+        gap: 12px;
+    }
+
+    .ranking-card {
+        padding: 15px;
+    }
+
+    .ranking-header {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .ranking-position {
+        font-size: 1.8em;
+    }
+
+    .ranking-info h4 {
+        font-size: 1.1em;
+    }
+
+    .score-details {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .total-score {
+        align-self: flex-start;
+        font-size: 1.3em;
+    }
+
+    /* Desert Storm page mobile styles */
+    .storm-strategy {
+        padding: 15px;
+    }
+
+    .strategy-phases {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+
+    .phase-card {
+        padding: 15px;
+    }
+
+    .storm-buildings-grid {
+        gap: 20px;
+    }
+
+    .storm-stage {
+        padding: 15px;
+    }
+
+    .storm-stage-buildings {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+
+    .storm-building {
+        padding: 15px;
+    }
+
+    .building-header {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    /* Settings page mobile styles */
+    .settings-group {
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+
+    .info-section {
+        padding: 15px;
+    }
+
+    .info-card {
+        padding: 15px;
+    }
+
+    .secondary-btn {
+        width: 100%;
+        padding: 12px;
+    }
+
+    /* Profile page mobile styles */
+    .profile-section {
+        padding: 15px;
+    }
+
+    .profile-info {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    /* Train schedule mobile styles */
+    .train-schedule-section {
+        padding: 15px;
+    }
+
+    .train-controls {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .train-controls input,
+    .train-controls select,
+    .train-controls button {
+        width: 100%;
+    }
+
+    .train-list {
+        gap: 12px;
+    }
+
+    .train-card {
+        padding: 15px;
+    }
+
+    .train-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .train-actions {
+        width: 100%;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .train-actions button {
+        width: 100%;
+    }
+
+    /* Modal mobile styles */
+    .modal-content {
+        width: 95%;
+        max-width: 95%;
+        margin: 10px;
+        padding: 20px 15px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .modal-header {
+        padding: 15px;
+        margin: -20px -15px 15px -15px;
+    }
+
+    .modal-body {
+        padding: 10px 0;
+    }
+
+    .modal-footer {
+        padding: 15px;
+        margin: 15px -15px -20px -15px;
+        flex-direction: column-reverse;
+        gap: 8px;
+    }
+
+    .modal-footer button {
+        width: 100%;
+        margin: 0;
+    }
+
+    /* Table mobile styles */
+    table {
+        font-size: 0.9em;
+    }
+
+    th,
+    td {
+        padding: 8px 6px;
+    }
+
+    /* Make tables scrollable on mobile */
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Compact display for long content */
+    .compact-mobile {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 150px;
+    }
+}
+
+/* Small mobile adjustments (smaller phones) */
+@media (max-width: 480px) {
+    /* Further reduce padding and font sizes */
+    .award-title {
+        font-size: 1em;
+    }
+
+    .ranking-position {
+        font-size: 1.5em;
+    }
+
+    .total-score {
+        font-size: 1.2em;
+    }
+
+    .phase-card {
+        padding: 12px;
+    }
+
+    .storm-building {
+        padding: 12px;
+    }
+
+    .stat-value {
+        font-size: 2em;
+    }
+
+    /* Adjust chart containers for very small screens */
+    .chart-container {
+        min-height: 250px;
     }
 }
