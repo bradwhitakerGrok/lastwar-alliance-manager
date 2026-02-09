@@ -1929,6 +1929,26 @@ button {
     color: #667eea;
 }
 
+.info-box {
+    background: #e7f3ff;
+    padding: 15px;
+    border-radius: 5px;
+    border-left: 4px solid #4a90e2;
+    margin-bottom: 20px;
+}
+
+.info-box p {
+    margin: 5px 0;
+    line-height: 1.6;
+}
+
+.info-box code {
+    background: #f4f4f4;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+}
+
 .secondary-btn {
     background: #6c757d;
     color: white;

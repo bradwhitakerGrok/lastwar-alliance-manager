@@ -55,11 +55,12 @@
 
                     <div class="settings-group">
                         <h4>⭐ Recommendation Points</h4>
-                        <div class="form-group">
-                            <label for="recommendation-points">Points Per Recommendation:</label>
-                            <input type="number" id="recommendation-points" min="0" required>
-                            <span class="help-text">Points given for each active recommendation</span>
+                        <div class="info-box">
+                            <p><strong>Non-Linear Scoring Formula:</strong> Points = 5 + 5 × √n</p>
+                            <p class="help-text">Where n = number of recommendations. This creates diminishing returns for multiple recommendations.</p>
+                            <p class="help-text">Examples: 1 rec = 10 pts, 4 recs = 15 pts, 9 recs = 20 pts</p>
                         </div>
+                        <p class="help-text"><em>Note: Recommendation points are calculated using a non-linear formula and cannot be manually configured.</em></p>
                     </div>
 
                     <div class="settings-group">
@@ -138,16 +139,19 @@
             <section class="info-section">
                 <h3>ℹ️ How the Ranking System Works</h3>
                 <div class="info-card">
-                    <p><strong>Auto-Schedule Selection:</strong> When you click the Auto button for a day, the system calculates a score for each eligible member:</p>
+                    <p><strong>Auto-Schedule Selection:</strong> When you auto-schedule, the system calculates a score for each eligible member:</p>
                     <ul>
                         <li><strong>Base Score:</strong> Starts at 0</li>
-                        <li><strong>Awards:</strong> Adds points based on last week's awards (1st/2nd/3rd place)</li>
-                        <li><strong>Recommendations:</strong> Adds points for each active recommendation</li>
-                        <li><strong>Recent Conductor:</strong> Subtracts points if they were conductor recently (within penalty duration)</li>
+                        <li><strong>Awards:</strong> Adds points based on active awards (1st/2nd/3rd place). Awards stack across weeks until member conducts.</li>
+                        <li><strong>Recommendations:</strong> Adds points using non-linear formula: 5 + 5×√n (where n = recommendation count). Recommendations stack until member conducts.</li>
+                        <li><strong>Rank Boost:</strong> R4 and R5 members receive bonus points</li>
+                        <li><strong>First Timer:</strong> Members who have never been conductor receive bonus points (if they have some base points)</li>
+                        <li><strong>Recent Conductor:</strong> Subtracts points if they were conductor recently (penalty = days_config - days_since_last, minimum 0)</li>
                         <li><strong>Above Average:</strong> Subtracts points if they've been conductor more times than the average member</li>
-                        <li><strong>Used This Week:</strong> Members already scheduled this week get -500 penalty</li>
                     </ul>
-                    <p><strong>Selection Priority:</strong> The member with the highest score who hasn't been used this week is selected as conductor.</p>
+                    <p><strong>Member Eligibility:</strong> Only members marked as "Eligible for Train" are considered for auto-scheduling. You can toggle eligibility on the Members page.</p>
+                    <p><strong>Award/Recommendation Expiration:</strong> Awards and recommendations automatically become inactive (expire) when the member is assigned as conductor or used as backup. This is calculated on-the-fly based on conductor history.</p>
+                    <p><strong>Selection Priority:</strong> The member with the highest score who is eligible is selected as conductor. The system aims to schedule 7 unique conductors per week.</p>
                 </div>
             </section>
         </main>
