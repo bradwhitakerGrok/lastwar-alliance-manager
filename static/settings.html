@@ -100,6 +100,25 @@
                     </div>
 
                     <div class="settings-group">
+                        <h4>⚡ Power Tracking</h4>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="power-tracking-enabled">
+                                Enable Power Tracking
+                            </label>
+                            <span class="help-text">When enabled, you can upload power rankings screenshots to track member power history</span>
+                        </div>
+                        
+                        <div id="power-upload-section" style="display: none; margin-top: 20px; padding: 20px; background: white; border-radius: 10px; border: 2px solid #667eea;">
+                            <h5 style="margin: 0 0 15px 0; color: #667eea;">📸 Upload Power Rankings</h5>
+                            <p style="font-size: 0.9em; color: #6c757d; margin-bottom: 15px;">Paste power data (one per line): Name, Power</p>
+                            <textarea id="power-data-input" rows="10" placeholder="Example:&#10;Gary6126, 71407341&#10;Anjel87, 55456932&#10;ileesu, 52325609" style="width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 8px; font-family: monospace; font-size: 14px;"></textarea>
+                            <button type="button" id="process-power-btn" class="primary-btn" style="margin-top: 10px; width: 100%;">📤 Upload Power Data</button>
+                            <div id="power-upload-result" style="margin-top: 10px; display: none;"></div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
                         <h4>📝 Weekly Schedule Message Template</h4>
                         <div class="form-group">
                             <label for="schedule-message-template">Message Template:</label>

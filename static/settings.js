@@ -63,6 +63,11 @@ async function loadSettings() {
         document.getElementById('first-time-boost').value = settings.first_time_conductor_boost || 5;
         document.getElementById('schedule-message-template').value = settings.schedule_message_template || 'Train Schedule - Week {WEEK}\n\n{SCHEDULES}\n\nNext in line:\n{NEXT_3}';
         document.getElementById('daily-message-template').value = settings.daily_message_template || 'ALL ABOARD! Daily Train Assignment\n\nDate: {DATE}\n\nToday\'s Conductor: {CONDUCTOR_NAME} ({CONDUCTOR_RANK})\nBackup Engineer: {BACKUP_NAME} ({BACKUP_RANK})\n\nDEPARTURE SCHEDULE:\n- 15:00 ST (17:00 UK) - Conductor {CONDUCTOR_NAME}, please request train assignment in alliance chat\n- 16:30 ST (18:30 UK) - If conductor hasn\'t shown up, Backup {BACKUP_NAME} takes over and assigns train to themselves\n\nRemember: Communication is key! Let the alliance know if you can\'t make it.\n\nAll aboard for another successful run!';
+        
+        // Power tracking
+        const powerTrackingEnabled = settings.power_tracking_enabled || false;
+        document.getElementById('power-tracking-enabled').checked = powerTrackingEnabled;
+        togglePowerUploadSection(powerTrackingEnabled);
     } catch (error) {
         console.error('Error loading settings:', error);
         alert('Failed to load settings');
@@ -87,7 +92,8 @@ document.getElementById('settings-form').addEventListener('submit', async (e) =>
         r4r5_rank_boost: parseInt(document.getElementById('r4r5-rank-boost').value),
         first_time_conductor_boost: parseInt(document.getElementById('first-time-boost').value),
         schedule_message_template: document.getElementById('schedule-message-template').value,
-        daily_message_template: document.getElementById('daily-message-template').value
+        daily_message_template: document.getElementById('daily-message-template').value,
+        power_tracking_enabled: document.getElementById('power-tracking-enabled').checked
     };
     
     try {
@@ -122,6 +128,109 @@ document.getElementById('reset-btn').addEventListener('click', () => {
         document.getElementById('first-time-boost').value = 5;
         document.getElementById('schedule-message-template').value = 'Train Schedule - Week {WEEK}\n\n{SCHEDULES}\n\nNext in line:\n{NEXT_3}';
         document.getElementById('daily-message-template').value = 'ALL ABOARD! Daily Train Assignment\n\nDate: {DATE}\n\nToday\'s Conductor: {CONDUCTOR_NAME} ({CONDUCTOR_RANK})\nBackup Engineer: {BACKUP_NAME} ({BACKUP_RANK})\n\nDEPARTURE SCHEDULE:\n- 15:00 ST (17:00 UK) - Conductor {CONDUCTOR_NAME}, please request train assignment in alliance chat\n- 16:30 ST (18:30 UK) - If conductor hasn\'t shown up, Backup {BACKUP_NAME} takes over and assigns train to themselves\n\nRemember: Communication is key! Let the alliance know if you can\'t make it.\n\nAll aboard for another successful run!';
+        document.getElementById('power-tracking-enabled').checked = false;
+    }
+});
+
+// Power tracking toggle
+function togglePowerUploadSection(enabled) {
+    const uploadSection = document.getElementById('power-upload-section');
+    if (uploadSection) {
+        uploadSection.style.display = enabled ? 'block' : 'none';
+    }
+}
+
+document.getElementById('power-tracking-enabled').addEventListener('change', (e) => {
+    togglePowerUploadSection(e.target.checked);
+});
+
+// Process power data
+document.getElementById('process-power-btn').addEventListener('click', async () => {
+    const dataInput = document.getElementById('power-data-input').value.trim();
+    const resultDiv = document.getElementById('power-upload-result');
+    
+    if (!dataInput) {
+        alert('Please paste power data first');
+        return;
+    }
+    
+    // Parse the input data
+    const lines = dataInput.split('\n').filter(line => line.trim());
+    const records = [];
+    const errors = [];
+    
+    lines.forEach((line, index) => {
+        const parts = line.split(',').map(p => p.trim());
+        if (parts.length !== 2) {
+            errors.push(`Line ${index + 1}: Invalid format (expected: Name, Power)`);
+            return;
+        }
+        
+        const [name, powerStr] = parts;
+        const power = parseInt(powerStr.replace(/,/g, ''));
+        
+        if (isNaN(power)) {
+            errors.push(`Line ${index + 1}: Invalid power value "${powerStr}"`);
+            return;
+        }
+        
+        records.push({ member_name: name, power: power });
+    });
+    
+    if (errors.length > 0) {
+        resultDiv.innerHTML = `<div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px;">
+            <strong>Parsing errors:</strong><br>
+            ${errors.join('<br>')}
+        </div>`;
+        resultDiv.style.display = 'block';
+        return;
+    }
+    
+    if (records.length === 0) {
+        alert('No valid records to upload');
+        return;
+    }
+    
+    try {
+        resultDiv.innerHTML = `<div style="background: #d1ecf1; color: #0c5460; padding: 10px; border-radius: 5px;">
+            Uploading ${records.length} records...
+        </div>`;
+        resultDiv.style.display = 'block';
+        
+        const response = await fetch(`${API_BASE}/power-history/process-screenshot`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ records: records })
+        });
+        
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(error);
+        }
+        
+        const result = await response.json();
+        
+        let html = `<div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 5px;">
+            <strong>✅ ${result.message}</strong><br>
+            Successful: ${result.success_count}, Failed: ${result.failed_count}
+        `;
+        
+        if (result.errors && result.errors.length > 0) {
+            html += `<br><br><strong>Errors:</strong><br>${result.errors.join('<br>')}`;
+        }
+        
+        html += '</div>';
+        resultDiv.innerHTML = html;
+        
+        // Clear input on success
+        if (result.success_count > 0) {
+            document.getElementById('power-data-input').value = '';
+        }
+    } catch (error) {
+        console.error('Error uploading power data:', error);
+        resultDiv.innerHTML = `<div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px;">
+            <strong>❌ Upload failed:</strong> ${error.message}
+        </div>`;
     }
 });
 

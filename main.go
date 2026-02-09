@@ -103,6 +103,13 @@ type WeekAwards struct {
 	Awards   map[string][]Award `json:"awards"`
 }
 
+type PowerHistory struct {
+	ID         int    `json:"id"`
+	MemberID   int    `json:"member_id"`
+	Power      int64  `json:"power"`
+	RecordedAt string `json:"recorded_at"`
+}
+
 type Settings struct {
 	ID                           int    `json:"id"`
 	AwardFirstPoints             int    `json:"award_first_points"`
@@ -115,6 +122,7 @@ type Settings struct {
 	FirstTimeConductorBoost      int    `json:"first_time_conductor_boost"`
 	ScheduleMessageTemplate      string `json:"schedule_message_template"`
 	DailyMessageTemplate         string `json:"daily_message_template"`
+	PowerTrackingEnabled         bool   `json:"power_tracking_enabled"`
 }
 
 type MemberRanking struct {
@@ -767,6 +775,26 @@ func initDB() error {
 		return err
 	}
 
+	// Create power_history table
+	createPowerHistorySQL := `CREATE TABLE IF NOT EXISTS power_history (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		member_id INTEGER NOT NULL,
+		power INTEGER NOT NULL,
+		recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+	);`
+
+	_, err = db.Exec(createPowerHistorySQL)
+	if err != nil {
+		return err
+	}
+
+	// Create index for faster power history queries
+	_, err = db.Exec("CREATE INDEX IF NOT EXISTS idx_power_history_member ON power_history(member_id, recorded_at DESC)")
+	if err != nil {
+		return err
+	}
+
 	// Create recommendations table
 	createRecommendationsSQL := `CREATE TABLE IF NOT EXISTS recommendations (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -936,6 +964,20 @@ All aboard for another successful run!`
 			return err
 		}
 		log.Println("Database migration: Added daily_message_template column to settings table")
+	}
+
+	// Migrate settings table to add power_tracking_enabled column if missing
+	var powerTrackingColumnExists bool
+	err = db.QueryRow(`
+		SELECT COUNT(*) FROM pragma_table_info('settings') 
+		WHERE name='power_tracking_enabled'
+	`).Scan(&powerTrackingColumnExists)
+	if err != nil || !powerTrackingColumnExists {
+		_, err = db.Exec(`ALTER TABLE settings ADD COLUMN power_tracking_enabled BOOLEAN DEFAULT 0`)
+		if err != nil {
+			return err
+		}
+		log.Println("Database migration: Added power_tracking_enabled column to settings table")
 	}
 
 	// Create default admin user if no users exist
@@ -2395,7 +2437,8 @@ func getSettings(w http.ResponseWriter, r *http.Request) {
 	var settings Settings
 	err := db.QueryRow(`SELECT id, award_first_points, award_second_points, award_third_points, 
 		recommendation_points, recent_conductor_penalty_days, above_average_conductor_penalty, r4r5_rank_boost,
-		first_time_conductor_boost, schedule_message_template, daily_message_template 
+		first_time_conductor_boost, schedule_message_template, daily_message_template, 
+		COALESCE(power_tracking_enabled, 0) as power_tracking_enabled
 		FROM settings WHERE id = 1`).Scan(
 		&settings.ID,
 		&settings.AwardFirstPoints,
@@ -2408,6 +2451,7 @@ func getSettings(w http.ResponseWriter, r *http.Request) {
 		&settings.FirstTimeConductorBoost,
 		&settings.ScheduleMessageTemplate,
 		&settings.DailyMessageTemplate,
+		&settings.PowerTrackingEnabled,
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -2436,7 +2480,8 @@ func updateSettings(w http.ResponseWriter, r *http.Request) {
 		r4r5_rank_boost = ?,
 		first_time_conductor_boost = ?,
 		schedule_message_template = ?,
-		daily_message_template = ? 
+		daily_message_template = ?,
+		power_tracking_enabled = ?
 		WHERE id = 1`,
 		settings.AwardFirstPoints,
 		settings.AwardSecondPoints,
@@ -2448,6 +2493,7 @@ func updateSettings(w http.ResponseWriter, r *http.Request) {
 		settings.FirstTimeConductorBoost,
 		settings.ScheduleMessageTemplate,
 		settings.DailyMessageTemplate,
+		settings.PowerTrackingEnabled,
 	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -3237,6 +3283,161 @@ func confirmMemberUpdates(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// Get power history for a specific member or all members
+func getPowerHistory(w http.ResponseWriter, r *http.Request) {
+	memberID := r.URL.Query().Get("member_id")
+	limit := r.URL.Query().Get("limit")
+	
+	if limit == "" {
+		limit = "30" // Default to last 30 records
+	}
+	
+	var rows *sql.Rows
+	var err error
+	
+	if memberID != "" {
+		rows, err = db.Query(`
+			SELECT ph.id, ph.member_id, ph.power, ph.recorded_at
+			FROM power_history ph
+			WHERE ph.member_id = ?
+			ORDER BY ph.recorded_at DESC
+			LIMIT ?
+		`, memberID, limit)
+	} else {
+		rows, err = db.Query(`
+			SELECT ph.id, ph.member_id, ph.power, ph.recorded_at
+			FROM power_history ph
+			ORDER BY ph.recorded_at DESC
+			LIMIT ?
+		`, limit)
+	}
+	
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+	
+	history := []PowerHistory{}
+	for rows.Next() {
+		var ph PowerHistory
+		if err := rows.Scan(&ph.ID, &ph.MemberID, &ph.Power, &ph.RecordedAt); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		history = append(history, ph)
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(history)
+}
+
+// Add power record manually
+func addPowerRecord(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		MemberID int   `json:"member_id"`
+		Power    int64 `json:"power"`
+	}
+	
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	
+	// Check if member exists
+	var exists int
+	err := db.QueryRow("SELECT COUNT(*) FROM members WHERE id = ?", request.MemberID).Scan(&exists)
+	if err != nil || exists == 0 {
+		http.Error(w, "Member not found", http.StatusNotFound)
+		return
+	}
+	
+	result, err := db.Exec("INSERT INTO power_history (member_id, power) VALUES (?, ?)", 
+		request.MemberID, request.Power)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	id, _ := result.LastInsertId()
+	
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Power record added successfully",
+		"id":      id,
+	})
+}
+
+// Process screenshot data (manual entry for now, OCR can be added later)
+func processPowerScreenshot(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Records []struct {
+			MemberName string `json:"member_name"`
+			Power      int64  `json:"power"`
+		} `json:"records"`
+	}
+	
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	
+	// Check if power tracking is enabled
+	var powerTrackingEnabled bool
+	err := db.QueryRow("SELECT COALESCE(power_tracking_enabled, 0) FROM settings WHERE id = 1").Scan(&powerTrackingEnabled)
+	if err != nil || !powerTrackingEnabled {
+		http.Error(w, "Power tracking is not enabled", http.StatusForbidden)
+		return
+	}
+	
+	tx, err := db.Begin()
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+	
+	successCount := 0
+	failedCount := 0
+	errors := []string{}
+	
+	for _, record := range request.Records {
+		// Find member by name
+		var memberID int
+		err := tx.QueryRow("SELECT id FROM members WHERE name = ?", record.MemberName).Scan(&memberID)
+		if err != nil {
+			failedCount++
+			errors = append(errors, fmt.Sprintf("Member '%s' not found", record.MemberName))
+			continue
+		}
+		
+		// Insert power record
+		_, err = tx.Exec("INSERT INTO power_history (member_id, power) VALUES (?, ?)", 
+			memberID, record.Power)
+		if err != nil {
+			failedCount++
+			errors = append(errors, fmt.Sprintf("Failed to add record for '%s': %v", record.MemberName, err))
+			continue
+		}
+		
+		successCount++
+	}
+	
+	if err := tx.Commit(); err != nil {
+		http.Error(w, "Failed to save records", http.StatusInternalServerError)
+		return
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":       fmt.Sprintf("Processed %d records successfully, %d failed", successCount, failedCount),
+		"success_count": successCount,
+		"failed_count":  failedCount,
+		"errors":        errors,
+	})
+}
+
 func main() {
 	// Initialize session store first
 	initSessionStore()
@@ -3301,6 +3502,11 @@ func main() {
 	router.HandleFunc("/api/storm-assignments", authMiddleware(getStormAssignments)).Methods("GET")
 	router.HandleFunc("/api/storm-assignments", authMiddleware(r4r5Middleware(saveStormAssignments))).Methods("POST")
 	router.HandleFunc("/api/storm-assignments/{taskForce}", authMiddleware(r4r5Middleware(deleteStormAssignments))).Methods("DELETE")
+
+	// Power history routes (protected)
+	router.HandleFunc("/api/power-history", authMiddleware(getPowerHistory)).Methods("GET")
+	router.HandleFunc("/api/power-history", authMiddleware(addPowerRecord)).Methods("POST")
+	router.HandleFunc("/api/power-history/process-screenshot", authMiddleware(processPowerScreenshot)).Methods("POST")
 
 	// Serve static files
 	router.PathPrefix("/").Handler(http.FileServer(http.Dir("./static")))
