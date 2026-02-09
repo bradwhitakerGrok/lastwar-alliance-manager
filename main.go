@@ -2300,16 +2300,13 @@ func getMemberRankings(w http.ResponseWriter, r *http.Request) {
 		members = append(members, m)
 	}
 
-	// Load award details from previous week
-	currentMonday := getMondayOfWeek(now)
-	prevWeekMonday := currentMonday.AddDate(0, 0, -7)
-	prevWeekStr := formatDateString(prevWeekMonday)
-
+	// Load all non-expired award details (stacks across weeks)
 	awardRows, err := db.Query(`
-		SELECT member_id, award_type, rank
+		SELECT member_id, award_type, rank, week_date
 		FROM awards
-		WHERE week_date = ?
-	`, prevWeekStr)
+		WHERE expired = 0
+		ORDER BY week_date DESC, rank ASC
+	`)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -2319,8 +2316,8 @@ func getMemberRankings(w http.ResponseWriter, r *http.Request) {
 	memberAwards := make(map[int][]AwardDetail)
 	for awardRows.Next() {
 		var memberID, rank int
-		var awardType string
-		if err := awardRows.Scan(&memberID, &awardType, &rank); err != nil {
+		var awardType, weekDate string
+		if err := awardRows.Scan(&memberID, &awardType, &rank, &weekDate); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
