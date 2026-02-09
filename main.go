@@ -617,6 +617,25 @@ func initDB() error {
 		return err
 	}
 
+	// Migrate existing members table to add eligible column if missing
+	var eligibleColumnExists bool
+	err = db.QueryRow(`
+		SELECT COUNT(*) > 0
+		FROM pragma_table_info('members')
+		WHERE name = 'eligible'
+	`).Scan(&eligibleColumnExists)
+	if err != nil {
+		return err
+	}
+
+	if !eligibleColumnExists {
+		_, err = db.Exec(`ALTER TABLE members ADD COLUMN eligible BOOLEAN NOT NULL DEFAULT 1`)
+		if err != nil {
+			return err
+		}
+		log.Println("Database migration: Added eligible column to members table")
+	}
+
 	// Create users table
 	createUsersTableSQL := `CREATE TABLE IF NOT EXISTS users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
