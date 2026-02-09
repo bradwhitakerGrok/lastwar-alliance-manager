@@ -102,11 +102,34 @@ function navigateNextWeek() {
     loadAwards();
 }
 
+// Fuzzy search function
+function fuzzyMatch(str, pattern) {
+    if (!pattern) return true;
+    const strLower = str.toLowerCase();
+    const patternLower = pattern.toLowerCase();
+    
+    // Exact match gets priority
+    if (strLower.includes(patternLower)) return true;
+    
+    // Fuzzy match - check if all pattern chars appear in order
+    let patternIdx = 0;
+    for (let i = 0; i < strLower.length && patternIdx < patternLower.length; i++) {
+        if (strLower[i] === patternLower[patternIdx]) {
+            patternIdx++;
+        }
+    }
+    return patternIdx === patternLower.length;
+}
+
 // Load award types from database
+let allAwardTypesData = []; // Store full award type objects
+
 async function loadAwardTypes() {
     try {
         const response = await fetch(AWARD_TYPES_URL);
         const awardTypes = await response.json();
+        
+        allAwardTypesData = awardTypes;
         
         AWARD_TYPES = awardTypes
             .filter(at => at.active)
@@ -127,6 +150,12 @@ async function loadAwardTypes() {
             'Grind King'
         ];
         activeAwardTypes = new Set(AWARD_TYPES);
+        allAwardTypesData = AWARD_TYPES.map((name, idx) => ({
+            id: idx + 1,
+            name: name,
+            active: true,
+            sort_order: idx
+        }));
     }
 }
 
@@ -562,56 +591,203 @@ function setupAwardSearch() {
     
     if (!searchInput || !addBtn) return;
     
-    // Search input handler
+    // Instant search with fuzzy matching
     searchInput.addEventListener('input', (e) => {
-        const searchTerm = e.target.value.trim().toLowerCase();
+        const query = e.target.value.trim();
         
-        if (searchTerm.length < 2) {
+        if (!query) {
             suggestionsDiv.style.display = 'none';
+            addBtn.textContent = '➕ Add New Award';
+            addBtn.disabled = false;
             return;
         }
         
-        // Filter inactive awards that match search
-        const inactiveTypes = AWARD_TYPES.filter(type => !activeAwardTypes.has(type));
-        const matches = inactiveTypes.filter(type => 
-            type.toLowerCase().includes(searchTerm)
-        );
+        // Find matching awards (both active and inactive)
+        const matches = allAwardTypesData.filter(at => fuzzyMatch(at.name, query));
         
-        if (matches.length > 0) {
+        // Separate into active and inactive
+        const activeMatches = matches.filter(at => at.active && activeAwardTypes.has(at.name));
+        const inactiveMatches = matches.filter(at => at.active && !activeAwardTypes.has(at.name));
+        const allInactiveMatches = matches.filter(at => !at.active);
+        
+        // Check if exact match exists
+        const exactMatch = allAwardTypesData.find(at => at.name.toLowerCase() === query.toLowerCase());
+        
+        if (exactMatch) {
+            if (exactMatch.active && activeAwardTypes.has(exactMatch.name)) {
+                addBtn.textContent = '✓ Already Active';
+                addBtn.disabled = true;
+            } else if (exactMatch.active && !activeAwardTypes.has(exactMatch.name)) {
+                addBtn.textContent = '↻ Activate';
+                addBtn.disabled = false;
+            } else {
+                addBtn.textContent = '↻ Reactivate';
+                addBtn.disabled = false;
+            }
+        } else {
+            addBtn.textContent = '➕ Add New Award';
+            addBtn.disabled = false;
+        }
+        
+        // Show suggestions
+        if (inactiveMatches.length > 0 || allInactiveMatches.length > 0) {
             let html = '<div style="padding: 10px; background: white; border-radius: 6px; border: 1px solid #dee2e6;">';
-            html += '<strong style="display: block; margin-bottom: 8px; color: #495057;">Existing Awards:</strong>';
-            html += '<div style="display: flex; flex-wrap: wrap; gap: 8px;">';
-            matches.forEach(award => {
-                html += `<button class="inactive-award-chip" style="cursor: pointer;" data-award="${award}">${award}</button>`;
-            });
-            html += '</div></div>';
+            
+            if (inactiveMatches.length > 0) {
+                html += '<strong style="display: block; color: #667eea; font-size: 0.9em; margin-bottom: 5px;">Hidden Awards:</strong>';
+                html += '<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">';
+                inactiveMatches.forEach(at => {
+                    html += `<button class="inactive-award-chip" data-award="${escapeHtml(at.name)}" data-action="activate" style="background: #e7f3ff; border-color: #667eea; cursor: pointer;">${escapeHtml(at.name)} <span style="color: #667eea;">↻</span></button>`;
+                });
+                html += '</div>';
+            }
+            
+            if (allInactiveMatches.length > 0) {
+                html += '<strong style="display: block; color: #dc3545; font-size: 0.9em; margin-bottom: 5px;">Inactive Awards:</strong>';
+                html += '<div style="display: flex; flex-wrap: wrap; gap: 8px;">';
+                allInactiveMatches.forEach(at => {
+                    html += `<button class="inactive-award-chip" data-award="${escapeHtml(at.name)}" data-id="${at.id}" data-action="reactivate" style="background: #fff3cd; border-color: #ffc107; cursor: pointer; position: relative;">${escapeHtml(at.name)} <span style="color: #28a745;">↻</span> <span style="color: #dc3545; margin-left: 5px; font-weight: bold;" data-delete="${at.id}">✕</span></button>`;
+                });
+                html += '</div>';
+            }
+            
+            html += '</div>';
             suggestionsDiv.innerHTML = html;
             suggestionsDiv.style.display = 'block';
             
-            // Add click handlers to suggestions
-            suggestionsDiv.querySelectorAll('.inactive-award-chip').forEach(chip => {
-                chip.addEventListener('click', (e) => {
+            // Add click handlers for activate
+            suggestionsDiv.querySelectorAll('button[data-action="activate"]').forEach(chip => {
+                chip.addEventListener('click', async (e) => {
                     e.preventDefault();
-                    const award = e.target.dataset.award;
+                    const award = e.currentTarget.dataset.award;
                     activeAwardTypes.add(award);
                     renderAwardsForm(true);
                     searchInput.value = '';
                     suggestionsDiv.style.display = 'none';
                 });
             });
+            
+            // Add click handlers for reactivate
+            suggestionsDiv.querySelectorAll('button[data-action="reactivate"]').forEach(chip => {
+                chip.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Check if clicking delete icon
+                    if (e.target.dataset.delete) {
+                        return;
+                    }
+                    
+                    const id = parseInt(e.currentTarget.dataset.id);
+                    const award = e.currentTarget.dataset.award;
+                    
+                    try {
+                        const response = await fetch(`${AWARD_TYPES_URL}/${id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: award, active: true })
+                        });
+                        
+                        if (response.ok) {
+                            await loadAwardTypes();
+                            activeAwardTypes.add(award);
+                            renderAwardsForm(true);
+                            searchInput.value = '';
+                            suggestionsDiv.style.display = 'none';
+                        } else {
+                            alert('Failed to reactivate award type');
+                        }
+                    } catch (error) {
+                        console.error('Error reactivating award:', error);
+                        alert('Error reactivating award type');
+                    }
+                });
+            });
+            
+            // Add delete handlers
+            suggestionsDiv.querySelectorAll('span[data-delete]').forEach(span => {
+                span.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const id = parseInt(e.target.dataset.delete);
+                    const button = e.target.closest('button');
+                    const awardName = button.dataset.award;
+                    
+                    if (!confirm(`Are you sure you want to completely delete "${awardName}"?\\n\\nThis will remove it and all its history permanently!`)) {
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch(`${AWARD_TYPES_URL}/${id}?force=true`, {
+                            method: 'DELETE'
+                        });
+                        
+                        if (response.ok) {
+                            await loadAwardTypes();
+                            renderAwardsForm(true);
+                            searchInput.value = '';
+                            suggestionsDiv.style.display = 'none';
+                            alert(`Award type "${awardName}" deleted successfully!`);
+                        } else {
+                            const error = await response.text();
+                            alert(`Failed to delete: ${error}`);
+                        }
+                    } catch (error) {
+                        console.error('Error deleting award:', error);
+                        alert('Error deleting award type');
+                    }
+                });
+            });
+        } else if (activeMatches.length > 0 && !exactMatch) {
+            let html = '<div style="padding: 10px; background: #d4edda; border-radius: 6px; border: 1px solid #c3e6cb; color: #155724; font-size: 0.9em;">';
+            html += '💡 Similar active awards: ';
+            html += activeMatches.map(at => `<strong>${escapeHtml(at.name)}</strong>`).join(', ');
+            html += '</div>';
+            suggestionsDiv.innerHTML = html;
+            suggestionsDiv.style.display = 'block';
         } else {
             suggestionsDiv.style.display = 'none';
         }
     });
     
-    // Add button handler
+    // Add/Activate button handler
     addBtn.addEventListener('click', async () => {
         const name = searchInput.value.trim();
-        if (name) {
-            const success = await addNewAwardType(name);
-            if (success) {
-                alert(`Award type "${name}" added successfully!`);
+        if (!name || addBtn.disabled) return;
+        
+        const exactMatch = allAwardTypesData.find(at => at.name.toLowerCase() === name.toLowerCase());
+        
+        if (exactMatch) {
+            if (exactMatch.active && !activeAwardTypes.has(exactMatch.name)) {
+                // Just activate in UI
+                activeAwardTypes.add(exactMatch.name);
+                renderAwardsForm(true);
+                searchInput.value = '';
+                suggestionsDiv.style.display = 'none';
+            } else if (!exactMatch.active) {
+                // Reactivate in database
+                try {
+                    const response = await fetch(`${AWARD_TYPES_URL}/${exactMatch.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: exactMatch.name, active: true })
+                    });
+                    
+                    if (response.ok) {
+                        await loadAwardTypes();
+                        activeAwardTypes.add(exactMatch.name);
+                        renderAwardsForm(true);
+                        searchInput.value = '';
+                        suggestionsDiv.style.display = 'none';
+                    }
+                } catch (error) {
+                    console.error('Error reactivating:', error);
+                }
             }
+        } else {
+            // Add new
+            await addNewAwardType(name);
         }
     });
     
@@ -619,13 +795,7 @@ function setupAwardSearch() {
     searchInput.addEventListener('keypress', async (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            const name = searchInput.value.trim();
-            if (name) {
-                const success = await addNewAwardType(name);
-                if (success) {
-                    alert(`Award type "${name}" added successfully!`);
-                }
-            }
+            addBtn.click();
         }
     });
 }

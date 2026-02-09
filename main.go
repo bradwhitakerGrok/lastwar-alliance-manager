@@ -2178,7 +2178,7 @@ func updateAwardType(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "Award type updated"})
 }
 
-// Delete award type (only if not used in any awards)
+// Delete award type (supports force deletion)
 func deleteAwardType(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id, err := strconv.Atoi(vars["id"])
@@ -2187,8 +2187,10 @@ func deleteAwardType(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if award type is used in any awards
-	var count int
+	// Check for force parameter
+	force := r.URL.Query().Get("force") == "true"
+
+	// Get award type name
 	var name string
 	err = db.QueryRow("SELECT name FROM award_types WHERE id = ?", id).Scan(&name)
 	if err != nil {
@@ -2196,15 +2198,26 @@ func deleteAwardType(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = db.QueryRow("SELECT COUNT(*) FROM awards WHERE award_type = ?", name).Scan(&count)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	if force {
+		// Delete all awards of this type first
+		_, err = db.Exec("DELETE FROM awards WHERE award_type = ?", name)
+		if err != nil {
+			http.Error(w, "Failed to delete related awards", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		// Check if award type is used in any awards
+		var count int
+		err = db.QueryRow("SELECT COUNT(*) FROM awards WHERE award_type = ?", name).Scan(&count)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
-	if count > 0 {
-		http.Error(w, "Cannot delete award type that is used in awards. You can deactivate it instead.", http.StatusBadRequest)
-		return
+		if count > 0 {
+			http.Error(w, "Cannot delete award type that is used in awards. Use force=true to delete anyway.", http.StatusBadRequest)
+			return
+		}
 	}
 
 	_, err = db.Exec("DELETE FROM award_types WHERE id = ?", id)
