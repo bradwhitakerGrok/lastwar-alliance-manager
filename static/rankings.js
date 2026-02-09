@@ -262,6 +262,7 @@ async function createMemberTimelineCharts(rankings) {
     const showReset = document.getElementById('show-reset').checked;
     const showNoReset = document.getElementById('show-no-reset').checked;
     const scaleType = document.querySelector('input[name="scale-type"]:checked').value;
+    const searchTerm = document.getElementById('member-chart-search')?.value.toLowerCase().trim() || '';
     
     // Fetch timeline data for each member (last 3 months)
     try {
@@ -270,13 +271,24 @@ async function createMemberTimelineCharts(rankings) {
         
         const timelineData = await response.json();
         
-        // Create chart for each member
-        rankings.forEach(ranking => {
+        // Filter rankings based on search
+        const filteredRankings = searchTerm 
+            ? rankings.filter(r => r.member.name.toLowerCase().includes(searchTerm))
+            : rankings;
+        
+        if (filteredRankings.length === 0) {
+            container.innerHTML = '<p class="empty">No members found matching your search.</p>';
+            return;
+        }
+        
+        // Create chart for each filtered member
+        filteredRankings.forEach(ranking => {
             const memberData = timelineData[ranking.member.id];
             if (!memberData || memberData.dates.length === 0) return;
             
             const chartDiv = document.createElement('div');
             chartDiv.className = 'member-timeline-chart';
+            chartDiv.setAttribute('data-member-name', ranking.member.name.toLowerCase());
             chartDiv.innerHTML = `
                 <h5>${ranking.member.name} (${ranking.member.rank})</h5>
                 <canvas id="timeline-${ranking.member.id}"></canvas>
@@ -327,7 +339,7 @@ async function createMemberTimelineCharts(rankings) {
                     },
                     scales: {
                         x: {
-                            title: { display: true, text: 'Date' }
+                            title: { display: true, text: 'Week' }
                         },
                         y: {
                             type: scaleType,
@@ -495,6 +507,19 @@ document.querySelectorAll('input[name="scale-type"]').forEach(radio => {
     radio.addEventListener('change', () => {
         if (currentData) displayCharts(currentData);
     });
+});
+
+// Member chart search
+document.getElementById('member-chart-search')?.addEventListener('input', () => {
+    if (currentData) displayCharts(currentData);
+});
+
+document.getElementById('clear-member-search')?.addEventListener('click', () => {
+    const searchInput = document.getElementById('member-chart-search');
+    if (searchInput) {
+        searchInput.value = '';
+        if (currentData) displayCharts(currentData);
+    }
 });
 
 // Get rank emoji

@@ -2018,6 +2018,46 @@ button {
     cursor: pointer;
 }
 
+.member-search-box {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    margin: 20px auto;
+    max-width: 600px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.member-search-box input {
+    flex: 1;
+    padding: 10px 15px;
+    border: 2px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 1em;
+    transition: border-color 0.3s ease;
+}
+
+.member-search-box input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.member-search-box .clear-search {
+    padding: 10px 20px;
+    background: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.member-search-box .clear-search:hover {
+    background: #5a6268;
+}
+
 .member-charts-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
@@ -2514,6 +2554,16 @@ button {
     .chart-options label {
         width: 100%;
         justify-content: center;
+    }
+    
+    .member-search-box {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .member-search-box input,
+    .member-search-box .clear-search {
+        width: 100%;
     }
     
     .award-detail-item {

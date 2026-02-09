@@ -2535,8 +2535,8 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 			return events[i].Date < events[j].Date
 		})
 
-		// Build daily timeline arrays
-		dates := []string{}
+		// Build weekly timeline arrays
+		weekLabels := []string{}
 		pointsWithReset := []int{}
 		pointsCumulative := []int{}
 
@@ -2544,40 +2544,55 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 		cumulativePoints := 0
 		conductorIdx := 0
 
-		// Generate date range from start to now
-		currentDate := startDate
+		// Generate week range from start to now (by Monday of each week)
+		currentDate := getMondayOfWeek(startDate)
 		for currentDate.Before(now) || currentDate.Equal(now) {
-			dateStr := formatDateString(currentDate)
-			dates = append(dates, dateStr)
+			weekStart := currentDate
+			weekEnd := currentDate.AddDate(0, 0, 6)
+			weekStartStr := formatDateString(weekStart)
+			weekEndStr := formatDateString(weekEnd)
 
-			// Check if this date has a conductor event (train reset)
-			if conductorIdx < len(conductorDates) && conductorDates[conductorIdx] <= dateStr {
-				// Reset points on conductor date
-				currentPoints = 0
-				if conductorDates[conductorIdx] == dateStr {
+			// Format: "Jan 1 - Jan 7"
+			weekLabel := fmt.Sprintf("%s - %s",
+				weekStart.Format("Jan 2"),
+				weekEnd.Format("Jan 2"))
+			weekLabels = append(weekLabels, weekLabel)
+
+			// Check if this week has a conductor event (train reset)
+			weekHasReset := false
+			for conductorIdx < len(conductorDates) && conductorDates[conductorIdx] <= weekEndStr {
+				if conductorDates[conductorIdx] >= weekStartStr {
+					weekHasReset = true
+					conductorIdx++
+				} else {
 					conductorIdx++
 				}
 			}
 
-			// Add points from events on this date
-			dailyPoints := 0
+			// Add points from events in this week
+			weekPoints := 0
 			for _, event := range events {
-				if event.Date == dateStr {
-					dailyPoints += event.Points
+				if event.Date >= weekStartStr && event.Date <= weekEndStr {
+					weekPoints += event.Points
 				}
 			}
 
-			currentPoints += dailyPoints
-			cumulativePoints += dailyPoints
+			currentPoints += weekPoints
+			cumulativePoints += weekPoints
+
+			// Apply reset at end of week if conductor event occurred
+			if weekHasReset {
+				currentPoints = 0
+			}
 
 			pointsWithReset = append(pointsWithReset, currentPoints)
 			pointsCumulative = append(pointsCumulative, cumulativePoints)
 
-			currentDate = currentDate.AddDate(0, 0, 1)
+			currentDate = currentDate.AddDate(0, 0, 7)
 		}
 
 		timelines[member.ID] = map[string]interface{}{
-			"dates":             dates,
+			"dates":             weekLabels,
 			"points_with_reset": pointsWithReset,
 			"points_cumulative": pointsCumulative,
 		}
