@@ -371,13 +371,15 @@ function displayRankings(rankings) {
                     ${ranking.award_details && ranking.award_details.length > 0 ? `
                         <div class="detail-section">
                             <h5>🏆 Award Details (${ranking.award_details.length} awards)</h5>
-                            <div class="awards-detailed-list">
+                            <div class="awards-compact-list">
                                 ${ranking.award_details.map(award => `
-                                    <div class="award-detail-item">
-                                        <span class="award-icon">${getRankEmoji(award.rank)}</span>
-                                        <span class="award-type">${escapeHtml(award.award_type)}</span>
-                                        <span class="award-rank">${getPlaceText(award.rank)}</span>
-                                        <span class="award-points">+${award.points} pts</span>
+                                    <div class="award-compact-item">
+                                        <span class="award-icon-compact">${getRankEmoji(award.rank)}</span>
+                                        <div class="award-info-compact">
+                                            <span class="award-type-compact">${escapeHtml(award.award_type)}</span>
+                                            <span class="award-week-compact">${getWeeksAgo(award.week_date)}</span>
+                                        </div>
+                                        <span class="award-points-compact">+${award.points}</span>
                                     </div>
                                 `).join('')}
                             </div>
@@ -433,6 +435,35 @@ function getPlaceText(rank) {
         case 2: return '2nd Place';
         case 3: return '3rd Place';
         default: return `${rank}th Place`;
+    }
+}
+
+// Get weeks ago text
+function getWeeksAgo(weekDate) {
+    const awardDate = new Date(weekDate);
+    const today = new Date();
+    
+    // Calculate Monday of current week
+    const currentMonday = new Date(today);
+    currentMonday.setDate(today.getDate() - today.getDay() + 1);
+    currentMonday.setHours(0, 0, 0, 0);
+    
+    // Calculate difference in weeks
+    const diffTime = currentMonday - awardDate;
+    const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
+    
+    if (diffWeeks === 0) {
+        return 'This week';
+    } else if (diffWeeks === 1) {
+        return 'Last week';
+    } else if (diffWeeks === 2) {
+        return '2 weeks ago';
+    } else if (diffWeeks === 3) {
+        return '3 weeks ago';
+    } else if (diffWeeks === 4) {
+        return '4 weeks ago';
+    } else {
+        return `${diffWeeks} weeks ago`;
     }
 }
 

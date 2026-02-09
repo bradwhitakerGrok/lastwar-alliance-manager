@@ -127,6 +127,7 @@ type AwardDetail struct {
 	AwardType string `json:"award_type"`
 	Rank      int    `json:"rank"`
 	Points    int    `json:"points"`
+	WeekDate  string `json:"week_date"`
 }
 
 type StormAssignment struct {
@@ -2334,6 +2335,7 @@ func getMemberRankings(w http.ResponseWriter, r *http.Request) {
 			AwardType: awardType,
 			Rank:      rank,
 			Points:    points,
+			WeekDate:  weekDate,
 		})
 	}
 

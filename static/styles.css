@@ -2277,6 +2277,58 @@ button {
     text-align: right;
 }
 
+/* Compact awards list */
+.awards-compact-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.award-compact-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: #f8f9fa;
+    border-radius: 20px;
+    border: 1px solid #dee2e6;
+    font-size: 0.9em;
+    transition: all 0.2s;
+}
+
+.award-compact-item:hover {
+    background: #e9ecef;
+    border-color: #667eea;
+}
+
+.award-icon-compact {
+    font-size: 1.2em;
+}
+
+.award-info-compact {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.award-type-compact {
+    font-weight: 600;
+    color: #495057;
+    line-height: 1.2;
+}
+
+.award-week-compact {
+    font-size: 0.85em;
+    color: #6c757d;
+    line-height: 1;
+}
+
+.award-points-compact {
+    font-weight: 700;
+    color: #28a745;
+    margin-left: 5px;
+}
+
 .no-awards {
     color: #adb5bd;
     font-style: italic;
@@ -2343,6 +2395,11 @@ button {
     .award-points {
         grid-column: 2;
         text-align: left;
+    }
+    
+    .award-compact-item {
+        flex: 1 1 100%;
+        justify-content: space-between;
     }
     
     .ranking-header {
