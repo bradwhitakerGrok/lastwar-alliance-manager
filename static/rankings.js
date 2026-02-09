@@ -3,6 +3,12 @@ const RANKINGS_URL = `${API_BASE}/rankings`;
 
 let currentData = null;
 let filteredRankings = null;
+let charts = {
+    score: null,
+    conductor: null,
+    pointsBreakdown: null,
+    awardDistribution: null
+};
 
 // Check authentication
 async function checkAuth() {
@@ -49,6 +55,7 @@ async function loadRankings() {
         filteredRankings = currentData.rankings;
         
         displaySystemInfo(currentData.settings, currentData.average_conductor_count);
+        displayCharts(currentData);
         displayRankings(filteredRankings);
         
         document.getElementById('avg-count').textContent = 
@@ -104,6 +111,180 @@ function displaySystemInfo(settings, avgCount) {
         </p>
     `;
     document.getElementById('system-info').innerHTML = html;
+}
+
+// Display charts
+function displayCharts(data) {
+    const rankings = data.rankings;
+    
+    // Destroy existing charts
+    Object.values(charts).forEach(chart => {
+        if (chart) chart.destroy();
+    });
+    
+    // 1. Score Distribution Chart
+    const scoreLabels = rankings.map((r, i) => `#${i + 1} ${r.member.name}`);
+    const scoreData = rankings.map(r => r.total_score);
+    
+    const scoreCtx = document.getElementById('scoreChart').getContext('2d');
+    charts.score = new Chart(scoreCtx, {
+        type: 'bar',
+        data: {
+            labels: scoreLabels.slice(0, 15),
+            datasets: [{
+                label: 'Total Score',
+                data: scoreData.slice(0, 15),
+                backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                borderColor: 'rgba(102, 126, 234, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                title: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Points' }
+                }
+            }
+        }
+    });
+    
+    // 2. Conductor Frequency Chart
+    const conductorCounts = rankings.map(r => ({ name: r.member.name, count: r.conductor_count }));
+    conductorCounts.sort((a, b) => b.count - a.count);
+    
+    const conductorCtx = document.getElementById('conductorChart').getContext('2d');
+    charts.conductor = new Chart(conductorCtx, {
+        type: 'bar',
+        data: {
+            labels: conductorCounts.slice(0, 15).map(c => c.name),
+            datasets: [{
+                label: 'Conductor Count',
+                data: conductorCounts.slice(0, 15).map(c => c.count),
+                backgroundColor: 'rgba(255, 159, 64, 0.8)',
+                borderColor: 'rgba(255, 159, 64, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1 },
+                    title: { display: true, text: 'Times as Conductor' }
+                }
+            }
+        }
+    });
+    
+    // 3. Points Breakdown Chart (Top 10)
+    const top10 = rankings.slice(0, 10);
+    const pointsBreakdownCtx = document.getElementById('pointsBreakdownChart').getContext('2d');
+    charts.pointsBreakdown = new Chart(pointsBreakdownCtx, {
+        type: 'bar',
+        data: {
+            labels: top10.map(r => r.member.name),
+            datasets: [
+                {
+                    label: 'Awards',
+                    data: top10.map(r => r.award_points),
+                    backgroundColor: 'rgba(255, 205, 86, 0.8)'
+                },
+                {
+                    label: 'Recommendations',
+                    data: top10.map(r => r.recommendation_points),
+                    backgroundColor: 'rgba(75, 192, 192, 0.8)'
+                },
+                {
+                    label: 'Rank Boost',
+                    data: top10.map(r => r.rank_boost),
+                    backgroundColor: 'rgba(153, 102, 255, 0.8)'
+                },
+                {
+                    label: 'First Timer',
+                    data: top10.map(r => r.first_time_conductor_boost),
+                    backgroundColor: 'rgba(54, 162, 235, 0.8)'
+                },
+                {
+                    label: 'Recent Penalty',
+                    data: top10.map(r => -r.recent_conductor_penalty),
+                    backgroundColor: 'rgba(255, 99, 132, 0.8)'
+                },
+                {
+                    label: 'Above Avg Penalty',
+                    data: top10.map(r => -r.above_average_penalty),
+                    backgroundColor: 'rgba(255, 159, 64, 0.8)'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: true, position: 'bottom' }
+            },
+            scales: {
+                x: { stacked: true },
+                y: { 
+                    stacked: true,
+                    title: { display: true, text: 'Points' }
+                }
+            }
+        }
+    });
+    
+    // 4. Award Distribution Chart
+    const awardTypes = {};
+    rankings.forEach(r => {
+        if (r.award_details && r.award_details.length > 0) {
+            r.award_details.forEach(award => {
+                const key = `${award.award_type} - ${getRankEmoji(award.rank)}`;
+                awardTypes[key] = (awardTypes[key] || 0) + 1;
+            });
+        }
+    });
+    
+    const awardLabels = Object.keys(awardTypes);
+    const awardData = Object.values(awardTypes);
+    
+    const awardCtx = document.getElementById('awardDistributionChart').getContext('2d');
+    charts.awardDistribution = new Chart(awardCtx, {
+        type: 'doughnut',
+        data: {
+            labels: awardLabels,
+            datasets: [{
+                data: awardData,
+                backgroundColor: [
+                    'rgba(255, 205, 86, 0.8)',
+                    'rgba(192, 192, 192, 0.8)',
+                    'rgba(205, 127, 50, 0.8)',
+                    'rgba(102, 126, 234, 0.8)',
+                    'rgba(255, 99, 132, 0.8)',
+                    'rgba(75, 192, 192, 0.8)',
+                    'rgba(153, 102, 255, 0.8)',
+                    'rgba(255, 159, 64, 0.8)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: true, position: 'right' }
+            }
+        }
+    });
 }
 
 // Filter rankings
@@ -189,16 +370,24 @@ function displayRankings(rankings) {
                     
                     ${ranking.award_details && ranking.award_details.length > 0 ? `
                         <div class="detail-section">
-                            <h5>🏆 Award Details</h5>
-                            <div class="awards-list">
+                            <h5>🏆 Award Details (${ranking.award_details.length} awards)</h5>
+                            <div class="awards-detailed-list">
                                 ${ranking.award_details.map(award => `
-                                    <span class="award-chip">
-                                        ${getRankEmoji(award.rank)} ${award.award_type}: +${award.points} pts
-                                    </span>
+                                    <div class="award-detail-item">
+                                        <span class="award-icon">${getRankEmoji(award.rank)}</span>
+                                        <span class="award-type">${escapeHtml(award.award_type)}</span>
+                                        <span class="award-rank">${getPlaceText(award.rank)}</span>
+                                        <span class="award-points">+${award.points} pts</span>
+                                    </div>
                                 `).join('')}
                             </div>
                         </div>
-                    ` : ''}
+                    ` : `
+                        <div class="detail-section">
+                            <h5>🏆 Award Details</h5>
+                            <p class="no-awards">No awards yet</p>
+                        </div>
+                    `}
                     
                     <div class="detail-section">
                         <h5>📈 Conductor Statistics</h5>
@@ -234,6 +423,16 @@ function getRankEmoji(rank) {
         case 2: return '🥈';
         case 3: return '🥉';
         default: return '🏅';
+    }
+}
+
+// Get place text
+function getPlaceText(rank) {
+    switch(rank) {
+        case 1: return '1st Place';
+        case 2: return '2nd Place';
+        case 3: return '3rd Place';
+        default: return `${rank}th Place`;
     }
 }
 

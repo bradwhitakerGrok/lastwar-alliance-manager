@@ -1888,6 +1888,43 @@ button {
 }
 
 /* Rankings page styles */
+.charts-section {
+    background: white;
+    padding: 30px;
+    margin-top: 20px;
+}
+
+.charts-section h3 {
+    color: #667eea;
+    margin-bottom: 20px;
+}
+
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+    gap: 30px;
+    margin-top: 20px;
+}
+
+.chart-container {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+    border: 2px solid #e9ecef;
+    min-height: 350px;
+}
+
+.chart-container h4 {
+    color: #495057;
+    margin-bottom: 15px;
+    text-align: center;
+    font-size: 1.1em;
+}
+
+.chart-container canvas {
+    max-height: 300px;
+}
+
 .rankings-section {
     background: white;
     padding: 30px;
@@ -2202,6 +2239,51 @@ button {
     font-weight: 600;
 }
 
+.awards-detailed-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.award-detail-item {
+    display: grid;
+    grid-template-columns: 40px 1fr 100px 80px;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 4px solid #667eea;
+}
+
+.award-icon {
+    font-size: 1.5em;
+    text-align: center;
+}
+
+.award-type {
+    font-weight: 600;
+    color: #495057;
+}
+
+.award-rank {
+    color: #6c757d;
+    font-size: 0.9em;
+}
+
+.award-points {
+    font-weight: 700;
+    color: #28a745;
+    text-align: right;
+}
+
+.no-awards {
+    color: #adb5bd;
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+}
+
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -2241,6 +2323,28 @@ button {
 }
 
 @media (max-width: 768px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .chart-container {
+        min-height: 300px;
+    }
+    
+    .award-detail-item {
+        grid-template-columns: 30px 1fr;
+        gap: 5px;
+    }
+    
+    .award-rank {
+        grid-column: 2;
+    }
+    
+    .award-points {
+        grid-column: 2;
+        text-align: left;
+    }
+    
     .ranking-header {
         flex-direction: column;
         align-items: flex-start;
