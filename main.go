@@ -1683,11 +1683,21 @@ func autoSchedule(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// If backupID is 0, no backup available - continue anyway
+
 		// Insert schedule for this day
-		result, err := db.Exec(
-			"INSERT OR REPLACE INTO train_schedules (date, conductor_id, backup_id, conductor_score) VALUES (?, ?, ?, ?)",
-			dateStr, conductorID, backupID, conductorScore,
-		)
+		var result sql.Result
+		if backupID > 0 {
+			result, err = db.Exec(
+				"INSERT OR REPLACE INTO train_schedules (date, conductor_id, backup_id, conductor_score) VALUES (?, ?, ?, ?)",
+				dateStr, conductorID, backupID, conductorScore,
+			)
+		} else {
+			result, err = db.Exec(
+				"INSERT OR REPLACE INTO train_schedules (date, conductor_id, backup_id, conductor_score) VALUES (?, ?, NULL, ?)",
+				dateStr, conductorID, conductorScore,
+			)
+		}
 		if err != nil {
 			http.Error(w, "Failed to create schedule: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -1698,25 +1708,58 @@ func autoSchedule(w http.ResponseWriter, r *http.Request) {
 		// Get the full schedule details
 		var schedule TrainSchedule
 		var score sql.NullInt64
-		err = db.QueryRow(`
+		var backupName sql.NullString
+		var backupRank sql.NullString
+
+		if backupID > 0 {
+			err = db.QueryRow(`
 			SELECT 
 				ts.id, ts.date, ts.conductor_id, 
 				mc.name, ts.conductor_score, ts.backup_id, mb.name, mb.rank,
 				ts.conductor_showed_up, ts.notes, ts.created_at
 			FROM train_schedules ts
 			JOIN members mc ON ts.conductor_id = mc.id
-			JOIN members mb ON ts.backup_id = mb.id
+			LEFT JOIN members mb ON ts.backup_id = mb.id
 			WHERE ts.id = ?
 		`, scheduleID).Scan(
-			&schedule.ID, &schedule.Date, &schedule.ConductorID,
-			&schedule.ConductorName, &score, &schedule.BackupID, &schedule.BackupName,
-			&schedule.BackupRank, &schedule.ConductorShowedUp, &schedule.Notes,
-			&schedule.CreatedAt,
-		)
+				&schedule.ID, &schedule.Date, &schedule.ConductorID,
+				&schedule.ConductorName, &score, &schedule.BackupID, &backupName,
+				&backupRank, &schedule.ConductorShowedUp, &schedule.Notes,
+				&schedule.CreatedAt,
+			)
+		} else {
+			err = db.QueryRow(`
+			SELECT 
+				ts.id, ts.date, ts.conductor_id, 
+				mc.name, ts.conductor_score,
+				ts.conductor_showed_up, ts.notes, ts.created_at
+			FROM train_schedules ts
+			JOIN members mc ON ts.conductor_id = mc.id
+			WHERE ts.id = ?
+		`, scheduleID).Scan(
+				&schedule.ID, &schedule.Date, &schedule.ConductorID,
+				&schedule.ConductorName, &score,
+				&schedule.ConductorShowedUp, &schedule.Notes,
+				&schedule.CreatedAt,
+			)
+			// Set backup fields to empty/zero
+			schedule.BackupID = 0
+			schedule.BackupName = ""
+			schedule.BackupRank = ""
+		}
 
 		if err != nil {
 			http.Error(w, "Failed to retrieve schedule: "+err.Error(), http.StatusInternalServerError)
 			return
+		}
+
+		if backupID > 0 {
+			if backupName.Valid {
+				schedule.BackupName = backupName.String
+			}
+			if backupRank.Valid {
+				schedule.BackupRank = backupRank.String
+			}
 		}
 
 		if score.Valid {
