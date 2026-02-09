@@ -347,13 +347,18 @@ func loadSettings() (Settings, error) {
 	return settings, err
 }
 
-// loadRecommendations loads recommendation counts for all members (non-expired only)
+// loadRecommendations loads recommendation counts for all members (active only)
+// A recommendation is active if the member hasn't been assigned as conductor/backup after it was created
 func loadRecommendations() (map[int]int, error) {
 	rows, err := db.Query(`
-		SELECT member_id, COUNT(*) as rec_count
-		FROM recommendations
-		WHERE expired = 0
-		GROUP BY member_id
+		SELECT r.member_id, COUNT(*) as rec_count
+		FROM recommendations r
+		WHERE NOT EXISTS (
+			SELECT 1 FROM train_schedules ts
+			WHERE (ts.conductor_id = r.member_id OR (ts.backup_id = r.member_id AND ts.conductor_showed_up = 0))
+			AND ts.date >= date(r.created_at)
+		)
+		GROUP BY r.member_id
 	`)
 	if err != nil {
 		return nil, err
@@ -371,24 +376,17 @@ func loadRecommendations() (map[int]int, error) {
 	return recommendationMap, nil
 }
 
-// expireRecommendationsForMember marks all recommendations for a member as expired
-func expireRecommendationsForMember(memberID int) error {
-	_, err := db.Exec(`UPDATE recommendations SET expired = 1 WHERE member_id = ? AND expired = 0`, memberID)
-	return err
-}
-
-// expireAwardsForMember marks all awards for a member as expired
-func expireAwardsForMember(memberID int) error {
-	_, err := db.Exec(`UPDATE awards SET expired = 1 WHERE member_id = ? AND expired = 0`, memberID)
-	return err
-}
-
-// loadAwards loads award scores for all members from all non-expired awards
+// loadAwards loads award scores for all members (active only)
+// An award is active if the member hasn't been assigned as conductor/backup after the award week
 func loadAwards(settings Settings) (map[int]int, error) {
 	rows, err := db.Query(`
-		SELECT member_id, rank
-		FROM awards
-		WHERE expired = 0
+		SELECT a.member_id, a.rank
+		FROM awards a
+		WHERE NOT EXISTS (
+			SELECT 1 FROM train_schedules ts
+			WHERE (ts.conductor_id = a.member_id OR (ts.backup_id = a.member_id AND ts.conductor_showed_up = 0))
+			AND ts.date >= a.week_date
+		)
 	`)
 	if err != nil {
 		return nil, err
@@ -688,24 +686,6 @@ func initDB() error {
 		return err
 	}
 
-	// Migrate existing awards table to add expired column if missing
-	err = db.QueryRow(`
-		SELECT COUNT(*) > 0
-		FROM pragma_table_info('awards')
-		WHERE name = 'expired'
-	`).Scan(&columnExists)
-	if err != nil {
-		return err
-	}
-
-	if !columnExists {
-		_, err = db.Exec(`ALTER TABLE awards ADD COLUMN expired BOOLEAN DEFAULT 0`)
-		if err != nil {
-			return err
-		}
-		log.Println("Database migration: Added expired column to awards table")
-	}
-
 	// Create recommendations table
 	createRecommendationsSQL := `CREATE TABLE IF NOT EXISTS recommendations (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -721,24 +701,6 @@ func initDB() error {
 	_, err = db.Exec(createRecommendationsSQL)
 	if err != nil {
 		return err
-	}
-
-	// Migrate existing recommendations table to add expired column if missing
-	err = db.QueryRow(`
-		SELECT COUNT(*) > 0
-		FROM pragma_table_info('recommendations')
-		WHERE name = 'expired'
-	`).Scan(&columnExists)
-	if err != nil {
-		return err
-	}
-
-	if !columnExists {
-		_, err = db.Exec(`ALTER TABLE recommendations ADD COLUMN expired BOOLEAN DEFAULT 0`)
-		if err != nil {
-			return err
-		}
-		log.Println("Database migration: Added expired column to recommendations table")
 	}
 
 	// Create settings table
@@ -1443,21 +1405,7 @@ func createTrainSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Expire recommendations for conductor and backup
-	if err := expireRecommendationsForMember(ts.ConductorID); err != nil {
-		log.Printf("Warning: Failed to expire recommendations for conductor %d: %v", ts.ConductorID, err)
-	}
-	if err := expireRecommendationsForMember(ts.BackupID); err != nil {
-		log.Printf("Warning: Failed to expire recommendations for backup %d: %v", ts.BackupID, err)
-	}
-
-	// Expire awards for conductor and backup
-	if err := expireAwardsForMember(ts.ConductorID); err != nil {
-		log.Printf("Warning: Failed to expire awards for conductor %d: %v", ts.ConductorID, err)
-	}
-	if err := expireAwardsForMember(ts.BackupID); err != nil {
-		log.Printf("Warning: Failed to expire awards for backup %d: %v", ts.BackupID, err)
-	}
+	// Awards and recommendations automatically become inactive via on-the-fly calculation
 
 	id, _ := result.LastInsertId()
 	ts.ID = int(id)
@@ -1513,23 +1461,7 @@ func updateTrainSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Expire recommendations if conductor or backup changed
-	if ts.ConductorID != existingConductorID {
-		if err := expireRecommendationsForMember(ts.ConductorID); err != nil {
-			log.Printf("Warning: Failed to expire recommendations for conductor %d: %v", ts.ConductorID, err)
-		}
-		if err := expireAwardsForMember(ts.ConductorID); err != nil {
-			log.Printf("Warning: Failed to expire awards for conductor %d: %v", ts.ConductorID, err)
-		}
-	}
-	if ts.BackupID != existingBackupID {
-		if err := expireRecommendationsForMember(ts.BackupID); err != nil {
-			log.Printf("Warning: Failed to expire recommendations for backup %d: %v", ts.BackupID, err)
-		}
-		if err := expireAwardsForMember(ts.BackupID); err != nil {
-			log.Printf("Warning: Failed to expire awards for backup %d: %v", ts.BackupID, err)
-		}
-	}
+	// Awards and recommendations automatically become inactive via on-the-fly calculation
 
 	ts.ID = id
 	w.Header().Set("Content-Type", "application/json")
@@ -2070,7 +2002,14 @@ func getRecommendations(w http.ResponseWriter, r *http.Request) {
 			rec.recommended_by_id,
 			COALESCE(rec.notes, ''),
 			rec.created_at,
-			COALESCE(rec.expired, 0)
+			CASE 
+				WHEN EXISTS (
+					SELECT 1 FROM train_schedules ts
+					WHERE (ts.conductor_id = rec.member_id OR (ts.backup_id = rec.member_id AND ts.conductor_showed_up = 0))
+					AND ts.date >= date(rec.created_at)
+				) THEN 1
+				ELSE 0
+			END as expired
 		FROM recommendations rec
 		JOIN members m ON rec.member_id = m.id
 		JOIN users u ON rec.recommended_by_id = u.id
@@ -2148,7 +2087,14 @@ func createRecommendation(w http.ResponseWriter, r *http.Request) {
 			rec.recommended_by_id,
 			COALESCE(rec.notes, ''),
 			rec.created_at,
-			COALESCE(rec.expired, 0)
+			CASE 
+				WHEN EXISTS (
+					SELECT 1 FROM train_schedules ts
+					WHERE (ts.conductor_id = rec.member_id OR (ts.backup_id = rec.member_id AND ts.conductor_showed_up = 0))
+					AND ts.date >= date(rec.created_at)
+				) THEN 1
+				ELSE 0
+			END as expired
 		FROM recommendations rec
 		JOIN members m ON rec.member_id = m.id
 		JOIN users u ON rec.recommended_by_id = u.id
@@ -2301,12 +2247,16 @@ func getMemberRankings(w http.ResponseWriter, r *http.Request) {
 		members = append(members, m)
 	}
 
-	// Load all non-expired award details (stacks across weeks)
+	// Load all active award details (calculated on-the-fly based on conductor history)
 	awardRows, err := db.Query(`
-		SELECT member_id, award_type, rank, week_date
-		FROM awards
-		WHERE expired = 0
-		ORDER BY week_date DESC, rank ASC
+		SELECT a.member_id, a.award_type, a.rank, a.week_date
+		FROM awards a
+		WHERE NOT EXISTS (
+			SELECT 1 FROM train_schedules ts
+			WHERE (ts.conductor_id = a.member_id OR (ts.backup_id = a.member_id AND ts.conductor_showed_up = 0))
+			AND ts.date >= a.week_date
+		)
+		ORDER BY a.week_date DESC, a.rank ASC
 	`)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
