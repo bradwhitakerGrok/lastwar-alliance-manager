@@ -3,11 +3,11 @@ const RANKINGS_URL = `${API_BASE}/rankings`;
 
 let currentData = null;
 let filteredRankings = null;
+let memberTimelineCharts = [];
 let charts = {
     score: null,
     conductor: null,
-    pointsBreakdown: null,
-    awardDistribution: null
+    pointsBreakdown: null
 };
 
 // Check authentication
@@ -244,47 +244,111 @@ function displayCharts(data) {
         }
     });
     
-    // 4. Award Distribution Chart
-    const awardTypes = {};
-    rankings.forEach(r => {
-        if (r.award_details && r.award_details.length > 0) {
-            r.award_details.forEach(award => {
-                const key = `${award.award_type} - ${getRankEmoji(award.rank)}`;
-                awardTypes[key] = (awardTypes[key] || 0) + 1;
-            });
-        }
-    });
+    // Create member timeline charts
+    createMemberTimelineCharts(rankings);
+}
+
+// Create timeline charts for each member showing point accumulation over last 3 months
+async function createMemberTimelineCharts(rankings) {
+    // Destroy existing member charts
+    memberTimelineCharts.forEach(chart => chart.destroy());
+    memberTimelineCharts = [];
     
-    const awardLabels = Object.keys(awardTypes);
-    const awardData = Object.values(awardTypes);
+    const container = document.getElementById('member-charts-container');
+    if (!container) return;
     
-    const awardCtx = document.getElementById('awardDistributionChart').getContext('2d');
-    charts.awardDistribution = new Chart(awardCtx, {
-        type: 'doughnut',
-        data: {
-            labels: awardLabels,
-            datasets: [{
-                data: awardData,
-                backgroundColor: [
-                    'rgba(255, 205, 86, 0.8)',
-                    'rgba(192, 192, 192, 0.8)',
-                    'rgba(205, 127, 50, 0.8)',
-                    'rgba(102, 126, 234, 0.8)',
-                    'rgba(255, 99, 132, 0.8)',
-                    'rgba(75, 192, 192, 0.8)',
-                    'rgba(153, 102, 255, 0.8)',
-                    'rgba(255, 159, 64, 0.8)'
-                ]
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: { display: true, position: 'right' }
+    container.innerHTML = '';
+    
+    const showReset = document.getElementById('show-reset').checked;
+    const showNoReset = document.getElementById('show-no-reset').checked;
+    const scaleType = document.querySelector('input[name="scale-type"]:checked').value;
+    
+    // Fetch timeline data for each member (last 3 months)
+    try {
+        const response = await fetch(`${API_BASE}/member-timelines?months=3`);
+        if (!response.ok) throw new Error('Failed to load timeline data');
+        
+        const timelineData = await response.json();
+        
+        // Create chart for each member
+        rankings.forEach(ranking => {
+            const memberData = timelineData[ranking.member.id];
+            if (!memberData || memberData.dates.length === 0) return;
+            
+            const chartDiv = document.createElement('div');
+            chartDiv.className = 'member-timeline-chart';
+            chartDiv.innerHTML = `
+                <h5>${ranking.member.name} (${ranking.member.rank})</h5>
+                <canvas id="timeline-${ranking.member.id}"></canvas>
+            `;
+            container.appendChild(chartDiv);
+            
+            const ctx = document.getElementById(`timeline-${ranking.member.id}`).getContext('2d');
+            
+            const datasets = [];
+            
+            if (showReset && memberData.points_with_reset) {
+                datasets.push({
+                    label: 'With Train Resets',
+                    data: memberData.points_with_reset,
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    borderWidth: 2,
+                    fill: true
+                });
             }
-        }
-    });
+            
+            if (showNoReset && memberData.points_cumulative) {
+                datasets.push({
+                    label: 'Cumulative (No Reset)',
+                    data: memberData.points_cumulative,
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    borderWidth: 2,
+                    fill: true
+                });
+            }
+            
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: memberData.dates,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: true, position: 'top' },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Date' }
+                        },
+                        y: {
+                            type: scaleType,
+                            beginAtZero: true,
+                            title: { display: true, text: 'Points' }
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+            
+            memberTimelineCharts.push(chart);
+        });
+    } catch (error) {
+        console.error('Error creating member timeline charts:', error);
+        container.innerHTML = '<p class="error">Failed to load member timeline data.</p>';
+    }
 }
 
 // Filter rankings
@@ -417,6 +481,21 @@ function displayRankings(rankings) {
     
     document.getElementById('rankings-list').innerHTML = html;
 }
+
+// Event listeners for chart options
+document.getElementById('show-reset')?.addEventListener('change', () => {
+    if (currentData) displayCharts(currentData);
+});
+
+document.getElementById('show-no-reset')?.addEventListener('change', () => {
+    if (currentData) displayCharts(currentData);
+});
+
+document.querySelectorAll('input[name="scale-type"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+        if (currentData) displayCharts(currentData);
+    });
+});
 
 // Get rank emoji
 function getRankEmoji(rank) {

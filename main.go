@@ -12,6 +12,7 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -2408,6 +2409,184 @@ func getMemberRankings(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Get member point accumulation timelines over specified months
+func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
+	// Parse months parameter (default to 3)
+	monthsParam := r.URL.Query().Get("months")
+	months := 3
+	if monthsParam != "" {
+		if m, err := strconv.Atoi(monthsParam); err == nil && m > 0 {
+			months = m
+		}
+	}
+
+	// Calculate start date (N months ago from today)
+	now := time.Now()
+	startDate := now.AddDate(0, -months, 0)
+
+	// Get all members
+	memberRows, err := db.Query("SELECT id, name, rank FROM members ORDER BY name")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer memberRows.Close()
+
+	var members []Member
+	for memberRows.Next() {
+		var m Member
+		if err := memberRows.Scan(&m.ID, &m.Name, &m.Rank); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		members = append(members, m)
+	}
+
+	// Get settings for point calculations
+	var settings Settings
+	err = db.QueryRow(`SELECT award_first_points, award_second_points, award_third_points, 
+		recommendation_points FROM settings WHERE id = 1`).Scan(
+		&settings.AwardFirstPoints, &settings.AwardSecondPoints,
+		&settings.AwardThirdPoints, &settings.RecommendationPoints)
+	if err != nil {
+		http.Error(w, "Failed to load settings: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Build timeline data for each member
+	timelines := make(map[int]map[string]interface{})
+
+	for _, member := range members {
+		// Get train schedules where member was conductor (to track resets)
+		conductorDates := []string{}
+		conductorRows, err := db.Query(`
+			SELECT date FROM train_schedules 
+			WHERE (conductor_id = ? OR (backup_id = ? AND conductor_showed_up = 0))
+			AND date >= ?
+			ORDER BY date ASC
+		`, member.ID, member.ID, formatDateString(startDate))
+		if err != nil {
+			continue
+		}
+		for conductorRows.Next() {
+			var dateStr string
+			if err := conductorRows.Scan(&dateStr); err == nil {
+				conductorDates = append(conductorDates, dateStr)
+			}
+		}
+		conductorRows.Close()
+
+		// Get all awards and recommendations since start date
+		type PointEvent struct {
+			Date   string
+			Points int
+		}
+		var events []PointEvent
+
+		// Get awards
+		awardRows, err := db.Query(`
+			SELECT week_date, rank FROM awards 
+			WHERE member_id = ? AND week_date >= ?
+			ORDER BY week_date ASC
+		`, member.ID, formatDateString(startDate))
+		if err == nil {
+			for awardRows.Next() {
+				var weekDate string
+				var rank int
+				if err := awardRows.Scan(&weekDate, &rank); err == nil {
+					points := 0
+					switch rank {
+					case 1:
+						points = settings.AwardFirstPoints
+					case 2:
+						points = settings.AwardSecondPoints
+					case 3:
+						points = settings.AwardThirdPoints
+					}
+					events = append(events, PointEvent{Date: weekDate, Points: points})
+				}
+			}
+			awardRows.Close()
+		}
+
+		// Get recommendations (calculate non-linear points: 5 + 5*sqrt(n))
+		recRows, err := db.Query(`
+			SELECT DATE(created_at) as rec_date, COUNT(*) as count
+			FROM recommendations 
+			WHERE member_id = ? AND DATE(created_at) >= ?
+			GROUP BY DATE(created_at)
+			ORDER BY rec_date ASC
+		`, member.ID, formatDateString(startDate))
+		if err == nil {
+			for recRows.Next() {
+				var recDate string
+				var count int
+				if err := recRows.Scan(&recDate, &count); err == nil {
+					// Non-linear formula: 5 + 5*sqrt(count)
+					points := int(5 + 5*math.Sqrt(float64(count)))
+					events = append(events, PointEvent{Date: recDate, Points: points})
+				}
+			}
+			recRows.Close()
+		}
+
+		// Sort events by date
+		sort.Slice(events, func(i, j int) bool {
+			return events[i].Date < events[j].Date
+		})
+
+		// Build daily timeline arrays
+		dates := []string{}
+		pointsWithReset := []int{}
+		pointsCumulative := []int{}
+
+		currentPoints := 0
+		cumulativePoints := 0
+		conductorIdx := 0
+
+		// Generate date range from start to now
+		currentDate := startDate
+		for currentDate.Before(now) || currentDate.Equal(now) {
+			dateStr := formatDateString(currentDate)
+			dates = append(dates, dateStr)
+
+			// Check if this date has a conductor event (train reset)
+			if conductorIdx < len(conductorDates) && conductorDates[conductorIdx] <= dateStr {
+				// Reset points on conductor date
+				currentPoints = 0
+				if conductorDates[conductorIdx] == dateStr {
+					conductorIdx++
+				}
+			}
+
+			// Add points from events on this date
+			dailyPoints := 0
+			for _, event := range events {
+				if event.Date == dateStr {
+					dailyPoints += event.Points
+				}
+			}
+
+			currentPoints += dailyPoints
+			cumulativePoints += dailyPoints
+
+			pointsWithReset = append(pointsWithReset, currentPoints)
+			pointsCumulative = append(pointsCumulative, cumulativePoints)
+
+			currentDate = currentDate.AddDate(0, 0, 1)
+		}
+
+		timelines[member.ID] = map[string]interface{}{
+			"dates":             dates,
+			"points_with_reset": pointsWithReset,
+			"points_cumulative": pointsCumulative,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(timelines)
+}
+
 // Generate weekly schedule message
 func generateWeeklyMessage(w http.ResponseWriter, r *http.Request) {
 	startDate := r.URL.Query().Get("start")
@@ -2857,6 +3036,7 @@ func main() {
 
 	// Rankings routes (protected)
 	router.HandleFunc("/api/rankings", authMiddleware(getMemberRankings)).Methods("GET")
+	router.HandleFunc("/api/member-timelines", authMiddleware(getMemberTimelines)).Methods("GET")
 
 	// Storm assignments routes (protected, R4/R5 only)
 	router.HandleFunc("/api/storm-assignments", authMiddleware(getStormAssignments)).Methods("GET")
