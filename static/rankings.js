@@ -48,7 +48,10 @@ function formatDate(dateStr) {
 // Load rankings
 async function loadRankings() {
     try {
-        const response = await fetch(RANKINGS_URL);
+        const showInactive = document.getElementById('show-inactive-awards')?.checked || false;
+        const url = showInactive ? `${RANKINGS_URL}?include_inactive=true` : RANKINGS_URL;
+        
+        const response = await fetch(url);
         if (!response.ok) throw new Error('Failed to load rankings');
         
         currentData = await response.json();
@@ -446,13 +449,13 @@ function displayRankings(rankings) {
                     
                     ${ranking.award_details && ranking.award_details.length > 0 ? `
                         <div class="detail-section">
-                            <h5>🏆 Award Details (${ranking.award_details.length} awards)</h5>
+                            <h5>🏆 Award Details (${ranking.award_details.filter(a => !a.expired).length} active${ranking.award_details.some(a => a.expired) ? `, ${ranking.award_details.filter(a => a.expired).length} inactive` : ''})</h5>
                             <div class="awards-compact-list">
                                 ${ranking.award_details.map(award => `
-                                    <div class="award-compact-item">
+                                    <div class="award-compact-item ${award.expired ? 'expired-award' : ''}">
                                         <span class="award-icon-compact">${getRankEmoji(award.rank)}</span>
                                         <div class="award-info-compact">
-                                            <span class="award-type-compact">${escapeHtml(award.award_type)}</span>
+                                            <span class="award-type-compact">${escapeHtml(award.award_type)}${award.expired ? ' (Expired)' : ''}</span>
                                             <span class="award-week-compact">${getWeeksAgo(award.week_date)}</span>
                                         </div>
                                         <span class="award-points-compact">+${award.points}</span>
@@ -590,6 +593,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Add filter event listeners
         document.getElementById('filter-name').addEventListener('input', filterRankings);
         document.getElementById('filter-rank').addEventListener('change', filterRankings);
+        document.getElementById('show-inactive-awards')?.addEventListener('change', loadRankings);
         document.getElementById('clear-filters-btn').addEventListener('click', clearFilters);
     }
 });

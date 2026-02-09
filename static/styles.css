@@ -2460,6 +2460,29 @@ button {
     border-color: #667eea;
 }
 
+.award-compact-item.expired-award {
+    opacity: 0.5;
+    background: #f8f9fa;
+    border-color: #ced4da;
+    border-style: dashed;
+}
+
+.award-compact-item.expired-award:hover {
+    opacity: 0.7;
+    background: #e9ecef;
+    border-color: #adb5bd;
+}
+
+.award-compact-item.expired-award .award-type-compact {
+    color: #6c757d;
+    text-decoration: line-through;
+}
+
+.award-compact-item.expired-award .award-points-compact {
+    color: #6c757d;
+    text-decoration: line-through;
+}
+
 .award-icon-compact {
     font-size: 1.2em;
 }

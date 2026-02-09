@@ -130,6 +130,7 @@ type AwardDetail struct {
 	Rank      int    `json:"rank"`
 	Points    int    `json:"points"`
 	WeekDate  string `json:"week_date"`
+	Expired   bool   `json:"expired"`
 }
 
 type StormAssignment struct {
@@ -2248,6 +2249,9 @@ func updateSettings(w http.ResponseWriter, r *http.Request) {
 
 // Get member rankings with detailed score breakdown
 func getMemberRankings(w http.ResponseWriter, r *http.Request) {
+	// Check if inactive awards should be included
+	includeInactive := r.URL.Query().Get("include_inactive") == "true"
+
 	// Build ranking context using current date
 	now := time.Now()
 	ctx, err := buildRankingContext(now)
@@ -2274,17 +2278,47 @@ func getMemberRankings(w http.ResponseWriter, r *http.Request) {
 		members = append(members, m)
 	}
 
-	// Load all active award details (calculated on-the-fly based on conductor history)
-	awardRows, err := db.Query(`
-		SELECT a.member_id, a.award_type, a.rank, a.week_date
-		FROM awards a
-		WHERE NOT EXISTS (
-			SELECT 1 FROM train_schedules ts
-			WHERE (ts.conductor_id = a.member_id OR (ts.backup_id = a.member_id AND ts.conductor_showed_up = 0))
-			AND ts.date >= a.week_date
-		)
-		ORDER BY a.week_date DESC, a.rank ASC
-	`)
+	// Load award details - include expired if requested
+	var awardQuery string
+	if includeInactive {
+		// Include all awards with expired flag
+		awardQuery = `
+			SELECT 
+				a.member_id, 
+				a.award_type, 
+				a.rank, 
+				a.week_date,
+				CASE 
+					WHEN EXISTS (
+						SELECT 1 FROM train_schedules ts
+						WHERE (ts.conductor_id = a.member_id OR (ts.backup_id = a.member_id AND ts.conductor_showed_up = 0))
+						AND ts.date >= a.week_date
+					) THEN 1
+					ELSE 0
+				END as expired
+			FROM awards a
+			ORDER BY a.week_date DESC, a.rank ASC
+		`
+	} else {
+		// Only active awards
+		awardQuery = `
+			SELECT 
+				a.member_id, 
+				a.award_type, 
+				a.rank, 
+				a.week_date,
+				0 as expired
+			FROM awards a
+			WHERE NOT EXISTS (
+				SELECT 1 FROM train_schedules ts
+				WHERE (ts.conductor_id = a.member_id OR (ts.backup_id = a.member_id AND ts.conductor_showed_up = 0))
+				AND ts.date >= a.week_date
+			)
+			ORDER BY a.week_date DESC, a.rank ASC
+		`
+	}
+
+	awardRows, err := db.Query(awardQuery)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -2293,9 +2327,9 @@ func getMemberRankings(w http.ResponseWriter, r *http.Request) {
 
 	memberAwards := make(map[int][]AwardDetail)
 	for awardRows.Next() {
-		var memberID, rank int
+		var memberID, rank, expired int
 		var awardType, weekDate string
-		if err := awardRows.Scan(&memberID, &awardType, &rank, &weekDate); err != nil {
+		if err := awardRows.Scan(&memberID, &awardType, &rank, &weekDate, &expired); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -2313,6 +2347,7 @@ func getMemberRankings(w http.ResponseWriter, r *http.Request) {
 			Rank:      rank,
 			Points:    points,
 			WeekDate:  weekDate,
+			Expired:   expired == 1,
 		})
 	}
 
