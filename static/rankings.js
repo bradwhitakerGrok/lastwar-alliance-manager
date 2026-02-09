@@ -77,8 +77,8 @@ function displaySystemInfo(settings, avgCount) {
                 <span class="info-value">+${settings.award_third_points} pts</span>
             </div>
             <div class="system-info-item">
-                <span class="info-label">⭐ Recommendation:</span>
-                <span class="info-value">+${settings.recommendation_points} pts each</span>
+                <span class="info-label">⭐ Recommendations:</span>
+                <span class="info-value">5 + 5*√n pts (non-linear scaling)</span>
             </div>
             <div class="system-info-item">
                 <span class="info-label">🏅 R4/R5 Rank Boost:</span>
@@ -98,8 +98,9 @@ function displaySystemInfo(settings, avgCount) {
             </div>
         </div>
         <p class="system-note">
-            <strong>Note:</strong> Rankings are calculated based on last week's awards. 
+            <strong>Note:</strong> Awards and recommendations stack across multiple weeks until you're assigned as conductor/backup, then they expire. 
             Average conductor count: <strong>${avgCount.toFixed(2)}</strong> times.
+            <br><strong>Recommendation Formula:</strong> 1 rec = 10pts, 2 recs = 12pts, 3 recs = 14pts, 4 recs = 15pts (diminishing returns)
         </p>
     `;
     document.getElementById('system-info').innerHTML = html;
