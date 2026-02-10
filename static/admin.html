@@ -7,17 +7,30 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-brand">⚔️ Last War Admin</div>
-        <div class="nav-links">
-            <a href="index.html">Dashboard</a>
-            <a href="admin.html" class="active">Admin</a>
-            <a href="profile.html">Profile</a>
-            <a href="#" onclick="logout()">Logout</a>
-        </div>
-    </nav>
-
     <div class="container">
+        <header>
+            <h1>🔐 Last War Admin Panel</h1>
+            <h2>User Management & Security</h2>
+            <div class="user-info">
+                <span id="username-display"></span>
+                <button id="logout-btn" class="logout-btn">Logout</button>
+            </div>
+        </header>
+
+        <nav class="nav-menu">
+            <a href="/" class="nav-link">👥 Members</a>
+            <a href="/train.html" class="nav-link">🚂 Train</a>
+            <a href="/awards.html" class="nav-link">🏆 Awards</a>
+            <a href="/recommendations.html" class="nav-link">⭐ Recs</a>
+            <a href="/rankings.html" class="nav-link">📊 Rankings</a>
+            <a href="/storm.html" class="nav-link">🏜️ Storm</a>
+            <a href="/upload.html" class="nav-link">📸 Upload</a>
+            <a href="/settings.html" class="nav-link">⚙️ Settings</a>
+            <a href="/admin.html" class="nav-link active admin-link">🔐 Admin</a>
+            <a href="/profile.html" class="nav-link">👤 Profile</a>
+        </nav>
+
+        <main>
         <!-- Tabs -->
         <div class="tabs">
             <button class="tab-button active" onclick="switchTab('users')">
@@ -75,6 +88,7 @@
                 </div>
             </div>
         </div>
+        </main>
     </div>
 
     <!-- Create/Edit User Modal -->

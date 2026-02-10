@@ -14,7 +14,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load initial data
     loadUsers();
     loadMembers();
+    
+    // Setup logout button
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', logout);
+    }
 });
+
+// Logout function
+async function logout() {
+    if (!confirm('Are you sure you want to logout?')) {
+        return;
+    }
+    
+    try {
+        await fetch('/api/logout', { method: 'POST' });
+        window.location.href = '/login.html';
+    } catch (error) {
+        console.error('Logout error:', error);
+        window.location.href = '/login.html';
+    }
+}
 
 // Check admin access
 async function checkAdminAccess() {
@@ -31,6 +52,16 @@ async function checkAdminAccess() {
             alert('Access Denied: Admin privileges required');
             window.location.href = 'index.html';
             return;
+        }
+        
+        // Display username
+        let displayText = `👤 ${data.username}`;
+        if (data.rank) {
+            displayText += ` (${data.rank})`;
+        }
+        const usernameDisplay = document.getElementById('username-display');
+        if (usernameDisplay) {
+            usernameDisplay.textContent = displayText;
         }
     } catch (error) {
         console.error('Auth check failed:', error);

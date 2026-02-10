@@ -147,6 +147,24 @@ header h2 {
     border-bottom-color: #667eea;
 }
 
+/* Admin link special styling */
+.nav-link.admin-link {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white !important;
+    font-weight: bold;
+}
+
+.nav-link.admin-link:hover {
+    background: linear-gradient(135deg, #5568d3 0%, #653a8b 100%);
+    color: white !important;
+}
+
+.nav-link.admin-link.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white !important;
+    border-bottom-color: white;
+}
+
 main {
     padding: 30px;
 }
