@@ -7,8 +7,7 @@ let memberTimelineCharts = [];
 let charts = {
     score: null,
     conductor: null,
-    pointsBreakdown: null,
-    power: null
+    pointsBreakdown: null
 };
 
 // Check authentication
@@ -255,7 +254,7 @@ async function createMemberTimelineCharts(rankings) {
     memberTimelineCharts.forEach(chart => chart.destroy());
     memberTimelineCharts = [];
     
-    // Fetch timeline data for each member (last 3 months)
+    // Fetch timeline data and power history for each member (last 3 months)
     try {
         const response = await fetch(`${API_BASE}/member-timelines?months=3`);
         if (!response.ok) throw new Error('Failed to load timeline data');
@@ -263,16 +262,17 @@ async function createMemberTimelineCharts(rankings) {
         const timelineData = await response.json();
         
         // Create chart for each member within their ranking card
-        rankings.forEach(ranking => {
+        for (const ranking of rankings) {
             const memberData = timelineData[ranking.member.id];
-            if (!memberData || memberData.dates.length === 0) return;
+            if (!memberData || memberData.dates.length === 0) continue;
             
             const canvas = document.getElementById(`timeline-${ranking.member.id}`);
-            if (!canvas) return;
+            if (!canvas) continue;
             
             // Get member-specific settings
             const showReset = document.getElementById(`show-reset-${ranking.member.id}`)?.checked ?? true;
             const showNoReset = document.getElementById(`show-no-reset-${ranking.member.id}`)?.checked ?? true;
+            const showPower = document.getElementById(`show-power-${ranking.member.id}`)?.checked ?? true;
             const scaleType = document.querySelector(`input[name="scale-type-${ranking.member.id}"]:checked`)?.value || 'linear';
             
             const ctx = canvas.getContext('2d');
@@ -287,7 +287,8 @@ async function createMemberTimelineCharts(rankings) {
                     backgroundColor: 'rgba(255, 99, 132, 0.1)',
                     borderWidth: 2,
                     fill: true,
-                    tension: 0.1
+                    tension: 0.1,
+                    yAxisID: 'y'
                 });
             }
             
@@ -298,6 +299,7 @@ async function createMemberTimelineCharts(rankings) {
                     borderColor: 'rgba(75, 192, 192, 1)',
                     backgroundColor: 'rgba(75, 192, 192, 0.1)',
                     borderWidth: 2,
+                    yAxisID: 'y',
                     fill: true,
                     tension: 0.1
                 });
@@ -365,8 +367,25 @@ async function createMemberTimelineCharts(rankings) {
                         y: {
                             type: scaleType,
                             beginAtZero: true,
+                            position: 'left',
                             title: { display: true, text: 'Points', font: { size: 11 } },
                             ticks: { font: { size: 10 } }
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            beginAtZero: false,
+                            title: { display: true, text: 'Power', font: { size: 11 }, color: 'rgba(102, 126, 234, 1)' },
+                            ticks: { 
+                                font: { size: 10 },
+                                color: 'rgba(102, 126, 234, 1)',
+                                callback: function(value) {
+                                    return formatPowerShort(value);
+                                }
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
                         }
                     },
                     interaction: {
@@ -378,10 +397,23 @@ async function createMemberTimelineCharts(rankings) {
             });
             
             memberTimelineCharts.push(chart);
-        });
+        }
     } catch (error) {
         console.error('Error creating member timeline charts:', error);
     }
+}
+
+// Format power for chart labels (short)
+function formatPowerShort(power) {
+    if (!power) return '0';
+    if (power >= 1000000000) {
+        return (power / 1000000000).toFixed(1) + 'B';
+    } else if (power >= 1000000) {
+        return (power / 1000000).toFixed(1) + 'M';
+    } else if (power >= 1000) {
+        return (power / 1000).toFixed(0) + 'K';
+    }
+    return power.toString();
 }
 
 // Filter rankings
@@ -515,7 +547,7 @@ function displayRankings(rankings) {
                     </div>
                     
                     <div class="detail-section">
-                        <h5>📊 Point Accumulation Timeline (Last 3 Months)</h5>
+                        <h5>📊 Point Accumulation & Power Timeline (Last 3 Months)</h5>
                         <div class="chart-options">
                             <label>
                                 <input type="checkbox" id="show-reset-${ranking.member.id}" class="timeline-option" data-member-id="${ranking.member.id}" checked>
@@ -524,6 +556,10 @@ function displayRankings(rankings) {
                             <label>
                                 <input type="checkbox" id="show-no-reset-${ranking.member.id}" class="timeline-option" data-member-id="${ranking.member.id}" checked>
                                 <span>Show without Resets (Cumulative)</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="show-power-${ranking.member.id}" class="timeline-option" data-member-id="${ranking.member.id}" checked>
+                                <span>⚡ Show Power</span>
                             </label>
                             <label>
                                 <input type="radio" name="scale-type-${ranking.member.id}" class="timeline-option" data-member-id="${ranking.member.id}" value="linear" checked>
@@ -655,196 +691,6 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Load members for power tracking selector
-async function loadMembersForPowerTracking() {
-    try {
-        const response = await fetch(`${API_BASE}/members`);
-        if (!response.ok) throw new Error('Failed to load members');
-        
-        const members = await response.json();
-        const select = document.getElementById('power-member-select');
-        
-        select.innerHTML = members
-            .sort((a, b) => a.name.localeCompare(b.name))
-            .map(member => `<option value="${member.id}">${escapeHtml(member.name)} (${escapeHtml(member.rank)})</option>`)
-            .join('');
-    } catch (error) {
-        console.error('Error loading members:', error);
-        document.getElementById('power-member-select').innerHTML = 
-            '<option value="">Error loading members</option>';
-    }
-}
-
-// Load power history chart
-async function loadPowerChart() {
-    const select = document.getElementById('power-member-select');
-    const selectedOptions = Array.from(select.selectedOptions);
-    
-    if (selectedOptions.length === 0) {
-        alert('Please select at least one member to view power history');
-        return;
-    }
-    
-    const memberIds = selectedOptions.map(opt => opt.value);
-    const memberNames = selectedOptions.map(opt => opt.text.split(' (')[0]);
-    
-    try {
-        // Fetch power history for all selected members
-        const historyPromises = memberIds.map((id, index) => 
-            fetch(`${API_BASE}/power-history?member_id=${id}&limit=100`)
-                .then(res => res.json())
-                .then(data => ({
-                    memberId: id,
-                    memberName: memberNames[index],
-                    data: data
-                }))
-        );
-        
-        const allHistory = await Promise.all(historyPromises);
-        
-        // Prepare datasets for chart
-        const colors = [
-            '#667eea', '#764ba2', '#f093fb', '#4facfe',
-            '#43e97b', '#fa709a', '#fee140', '#30cfd0',
-            '#a8edea', '#ff6b6b', '#4ecdc4', '#45b7d1'
-        ];
-        
-        const datasets = allHistory.map((history, index) => {
-            const sortedData = history.data.sort((a, b) => 
-                new Date(a.recorded_at) - new Date(b.recorded_at)
-            );
-            
-            return {
-                label: history.memberName,
-                data: sortedData.map(record => ({
-                    x: new Date(record.recorded_at),
-                    y: record.power
-                })),
-                borderColor: colors[index % colors.length],
-                backgroundColor: colors[index % colors.length] + '20',
-                borderWidth: 2,
-                tension: 0.1,
-                pointRadius: 3,
-                pointHoverRadius: 5
-            };
-        });
-        
-        // Destroy existing chart if any
-        if (charts.power) {
-            charts.power.destroy();
-        }
-        
-        // Create new chart
-        const ctx = document.getElementById('powerChart');
-        charts.power = new Chart(ctx, {
-            type: 'line',
-            data: { datasets },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const value = context.parsed.y;
-                                const formattedValue = formatPowerFull(value);
-                                return `${context.dataset.label}: ${formattedValue}`;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        type: 'time',
-                        time: {
-                            unit: 'day',
-                            displayFormats: {
-                                day: 'MMM d'
-                            }
-                        },
-                        title: {
-                            display: true,
-                            text: 'Date'
-                        }
-                    },
-                    y: {
-                        beginAtZero: false,
-                        title: {
-                            display: true,
-                            text: 'Power'
-                        },
-                        ticks: {
-                            callback: function(value) {
-                                return formatPowerShort(value);
-                            }
-                        }
-                    }
-                },
-                interaction: {
-                    intersect: false,
-                    mode: 'index'
-                }
-            }
-        });
-    } catch (error) {
-        console.error('Error loading power chart:', error);
-        alert('Failed to load power history. Please try again.');
-    }
-}
-
-// Format power for chart labels (short)
-function formatPowerShort(power) {
-    if (power >= 1000000000) {
-        return (power / 1000000000).toFixed(1) + 'B';
-    } else if (power >= 1000000) {
-        return (power / 1000000).toFixed(1) + 'M';
-    } else if (power >= 1000) {
-        return (power / 1000).toFixed(0) + 'K';
-    }
-    return power.toString();
-}
-
-// Format power for tooltips (full)
-function formatPowerFull(power) {
-    if (power >= 1000000000) {
-        return (power / 1000000000).toFixed(2) + 'B (' + power.toLocaleString() + ')';
-    } else if (power >= 1000000) {
-        return (power / 1000000).toFixed(2) + 'M (' + power.toLocaleString() + ')';
-    } else if (power >= 1000) {
-        return (power / 1000).toFixed(1) + 'K (' + power.toLocaleString() + ')';
-    }
-    return power.toLocaleString();
-}
-
-// Select all members
-document.getElementById('select-all-members').addEventListener('click', () => {
-    const select = document.getElementById('power-member-select');
-    for (let option of select.options) {
-        option.selected = true;
-    }
-});
-
-// Clear all member selections
-document.getElementById('clear-all-members').addEventListener('click', () => {
-    const select = document.getElementById('power-member-select');
-    for (let option of select.options) {
-        option.selected = false;
-    }
-    
-    // Clear chart
-    if (charts.power) {
-        charts.power.destroy();
-        charts.power = null;
-    }
-});
-
-// Load power chart button
-document.getElementById('load-power-chart').addEventListener('click', loadPowerChart);
-
 // Refresh rankings
 document.getElementById('refresh-btn').addEventListener('click', loadRankings);
 
@@ -853,7 +699,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const auth = await checkAuth();
     if (auth) {
         await loadRankings();
-        await loadMembersForPowerTracking();
         
         // Add filter event listeners
         document.getElementById('filter-name').addEventListener('input', filterRankings);
