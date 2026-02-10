@@ -368,6 +368,19 @@ async function createMemberTimelineCharts(rankings) {
                 });
             }
             
+            if (showPower && memberData.power) {
+                datasets.push({
+                    label: 'Power',
+                    data: memberData.power,
+                    borderColor: 'rgba(102, 126, 234, 1)',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.1,
+                    yAxisID: 'y1'
+                });
+            }
+            
             if (datasets.length === 0) return;
             
             // Create annotations for conductor assignments (vertical lines)
