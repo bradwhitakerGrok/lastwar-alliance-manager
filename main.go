@@ -7,11 +7,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"math/big"
 	"net/http"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,6 +21,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
+	"github.com/otiai10/gosseract/v2"
 	"golang.org/x/crypto/bcrypt"
 	_ "modernc.org/sqlite"
 )
@@ -3287,14 +3290,14 @@ func confirmMemberUpdates(w http.ResponseWriter, r *http.Request) {
 func getPowerHistory(w http.ResponseWriter, r *http.Request) {
 	memberID := r.URL.Query().Get("member_id")
 	limit := r.URL.Query().Get("limit")
-	
+
 	if limit == "" {
 		limit = "30" // Default to last 30 records
 	}
-	
+
 	var rows *sql.Rows
 	var err error
-	
+
 	if memberID != "" {
 		rows, err = db.Query(`
 			SELECT ph.id, ph.member_id, ph.power, ph.recorded_at
@@ -3311,13 +3314,13 @@ func getPowerHistory(w http.ResponseWriter, r *http.Request) {
 			LIMIT ?
 		`, limit)
 	}
-	
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
-	
+
 	history := []PowerHistory{}
 	for rows.Next() {
 		var ph PowerHistory
@@ -3327,7 +3330,7 @@ func getPowerHistory(w http.ResponseWriter, r *http.Request) {
 		}
 		history = append(history, ph)
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(history)
 }
@@ -3338,12 +3341,12 @@ func addPowerRecord(w http.ResponseWriter, r *http.Request) {
 		MemberID int   `json:"member_id"`
 		Power    int64 `json:"power"`
 	}
-	
+
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	
+
 	// Check if member exists
 	var exists int
 	err := db.QueryRow("SELECT COUNT(*) FROM members WHERE id = ?", request.MemberID).Scan(&exists)
@@ -3351,16 +3354,16 @@ func addPowerRecord(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Member not found", http.StatusNotFound)
 		return
 	}
-	
-	result, err := db.Exec("INSERT INTO power_history (member_id, power) VALUES (?, ?)", 
+
+	result, err := db.Exec("INSERT INTO power_history (member_id, power) VALUES (?, ?)",
 		request.MemberID, request.Power)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	id, _ := result.LastInsertId()
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -3369,20 +3372,75 @@ func addPowerRecord(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Process screenshot data (manual entry for now, OCR can be added later)
+// Extract power data from image using OCR
+func extractPowerDataFromImage(imageData []byte) ([]struct {
+	MemberName string `json:"member_name"`
+	Power      int64  `json:"power"`
+}, error) {
+	client := gosseract.NewClient()
+	defer client.Close()
+
+	err := client.SetImageFromBytes(imageData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load image: %v", err)
+	}
+
+	// Configure Tesseract for better number recognition
+	client.SetPageSegMode(gosseract.PSM_AUTO)
+
+	text, err := client.Text()
+	if err != nil {
+		return nil, fmt.Errorf("OCR failed: %v", err)
+	}
+
+	// Parse the OCR text
+	return parsePowerRankingsText(text), nil
+}
+
+// Parse power rankings text (from OCR or manual input)
+func parsePowerRankingsText(text string) []struct {
+	MemberName string `json:"member_name"`
+	Power      int64  `json:"power"`
+} {
+	var records []struct {
+		MemberName string `json:"member_name"`
+		Power      int64  `json:"power"`
+	}
+
+	lines := strings.Split(text, "\n")
+	// Pattern to match: name, optional whitespace/separators, then numbers (possibly with commas/spaces)
+	re := regexp.MustCompile(`^([^,\d]+?)[\s,;:|]+([0-9,\s]+)`)
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		matches := re.FindStringSubmatch(line)
+		if len(matches) == 3 {
+			name := strings.TrimSpace(matches[1])
+			powerStr := strings.ReplaceAll(matches[2], ",", "")
+			powerStr = strings.ReplaceAll(powerStr, " ", "")
+
+			power, err := strconv.ParseInt(powerStr, 10, 64)
+			if err == nil && power > 0 && name != "" {
+				records = append(records, struct {
+					MemberName string `json:"member_name"`
+					Power      int64  `json:"power"`
+				}{
+					MemberName: name,
+					Power:      power,
+				})
+			}
+		}
+	}
+
+	return records
+}
+
+// Process screenshot data with OCR support
 func processPowerScreenshot(w http.ResponseWriter, r *http.Request) {
-	var request struct {
-		Records []struct {
-			MemberName string `json:"member_name"`
-			Power      int64  `json:"power"`
-		} `json:"records"`
-	}
-	
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	
 	// Check if power tracking is enabled
 	var powerTrackingEnabled bool
 	err := db.QueryRow("SELECT COALESCE(power_tracking_enabled, 0) FROM settings WHERE id = 1").Scan(&powerTrackingEnabled)
@@ -3390,19 +3448,80 @@ func processPowerScreenshot(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Power tracking is not enabled", http.StatusForbidden)
 		return
 	}
-	
+
+	var records []struct {
+		MemberName string `json:"member_name"`
+		Power      int64  `json:"power"`
+	}
+
+	// Check if this is a multipart form (image upload) or JSON (manual text)
+	contentType := r.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		// Handle image upload
+		err := r.ParseMultipartForm(10 << 20) // 10 MB max
+		if err != nil {
+			http.Error(w, "Failed to parse form", http.StatusBadRequest)
+			return
+		}
+
+		file, _, err := r.FormFile("image")
+		if err != nil {
+			http.Error(w, "No image file provided", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		imageData, err := io.ReadAll(file)
+		if err != nil {
+			http.Error(w, "Failed to read image", http.StatusInternalServerError)
+			return
+		}
+
+		records, err = extractPowerDataFromImage(imageData)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("OCR processing failed: %v", err), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		// Handle JSON (manual text or pre-parsed data)
+		var request struct {
+			Records []struct {
+				MemberName string `json:"member_name"`
+				Power      int64  `json:"power"`
+			} `json:"records"`
+			Text string `json:"text"` // Raw text to parse
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if request.Text != "" {
+			// Parse raw text
+			records = parsePowerRankingsText(request.Text)
+		} else {
+			records = request.Records
+		}
+	}
+
+	if len(records) == 0 {
+		http.Error(w, "No valid records found", http.StatusBadRequest)
+		return
+	}
+
 	tx, err := db.Begin()
 	if err != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback()
-	
+
 	successCount := 0
 	failedCount := 0
 	errors := []string{}
-	
-	for _, record := range request.Records {
+
+	for _, record := range records {
 		// Find member by name
 		var memberID int
 		err := tx.QueryRow("SELECT id FROM members WHERE name = ?", record.MemberName).Scan(&memberID)
@@ -3411,24 +3530,24 @@ func processPowerScreenshot(w http.ResponseWriter, r *http.Request) {
 			errors = append(errors, fmt.Sprintf("Member '%s' not found", record.MemberName))
 			continue
 		}
-		
+
 		// Insert power record
-		_, err = tx.Exec("INSERT INTO power_history (member_id, power) VALUES (?, ?)", 
+		_, err = tx.Exec("INSERT INTO power_history (member_id, power) VALUES (?, ?)",
 			memberID, record.Power)
 		if err != nil {
 			failedCount++
 			errors = append(errors, fmt.Sprintf("Failed to add record for '%s': %v", record.MemberName, err))
 			continue
 		}
-		
+
 		successCount++
 	}
-	
+
 	if err := tx.Commit(); err != nil {
 		http.Error(w, "Failed to save records", http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message":       fmt.Sprintf("Processed %d records successfully, %d failed", successCount, failedCount),

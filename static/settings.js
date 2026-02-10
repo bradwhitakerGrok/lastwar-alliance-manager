@@ -144,6 +144,172 @@ document.getElementById('power-tracking-enabled').addEventListener('change', (e)
     togglePowerUploadSection(e.target.checked);
 });
 
+// Tab switching
+document.getElementById('tab-image').addEventListener('click', () => {
+    document.getElementById('tab-image').classList.add('active');
+    document.getElementById('tab-text').classList.remove('active');
+    document.getElementById('tab-image').style.borderBottom = '3px solid #667eea';
+    document.getElementById('tab-image').style.color = '#667eea';
+    document.getElementById('tab-image').style.fontWeight = 'bold';
+    document.getElementById('tab-text').style.borderBottom = '3px solid transparent';
+    document.getElementById('tab-text').style.color = '#6c757d';
+    document.getElementById('tab-text').style.fontWeight = 'normal';
+    document.getElementById('image-upload-tab').style.display = 'block';
+    document.getElementById('text-upload-tab').style.display = 'none';
+});
+
+document.getElementById('tab-text').addEventListener('click', () => {
+    document.getElementById('tab-text').classList.add('active');
+    document.getElementById('tab-image').classList.remove('active');
+    document.getElementById('tab-text').style.borderBottom = '3px solid #667eea';
+    document.getElementById('tab-text').style.color = '#667eea';
+    document.getElementById('tab-text').style.fontWeight = 'bold';
+    document.getElementById('tab-image').style.borderBottom = '3px solid transparent';
+    document.getElementById('tab-image').style.color = '#6c757d';
+    document.getElementById('tab-image').style.fontWeight = 'normal';
+    document.getElementById('text-upload-tab').style.display = 'block';
+    document.getElementById('image-upload-tab').style.display = 'none';
+});
+
+// Image upload handling
+const imageInput = document.getElementById('power-image-input');
+const dropZone = document.getElementById('image-drop-zone');
+const dropZoneContent = document.getElementById('drop-zone-content');
+const imagePreview = document.getElementById('image-preview');
+const previewImg = document.getElementById('preview-img');
+const previewFilename = document.getElementById('preview-filename');
+const processImageBtn = document.getElementById('process-image-btn');
+const clearImageBtn = document.getElementById('clear-image-btn');
+
+let selectedFile = null;
+
+// Click to upload
+dropZone.addEventListener('click', () => {
+    if (!selectedFile) {
+        imageInput.click();
+    }
+});
+
+// File selection
+imageInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+        handleFile(e.target.files[0]);
+    }
+});
+
+// Drag and drop
+dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.style.borderColor = '#667eea';
+    dropZone.style.background = '#f0f3ff';
+});
+
+dropZone.addEventListener('dragleave', () => {
+    dropZone.style.borderColor = '#dee2e6';
+    dropZone.style.background = '#f8f9fa';
+});
+
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.style.borderColor = '#dee2e6';
+    dropZone.style.background = '#f8f9fa';
+    
+    if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+    }
+});
+
+function handleFile(file) {
+    if (!file.type.startsWith('image/')) {
+        alert('Please upload an image file');
+        return;
+    }
+    
+    if (file.size > 10 * 1024 * 1024) {
+        alert('File size must be less than 10MB');
+        return;
+    }
+    
+    selectedFile = file;
+    
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        previewImg.src = e.target.result;
+        previewFilename.textContent = file.name;
+        dropZoneContent.style.display = 'none';
+        imagePreview.style.display = 'block';
+        processImageBtn.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+}
+
+clearImageBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    selectedFile = null;
+    imageInput.value = '';
+    dropZoneContent.style.display = 'block';
+    imagePreview.style.display = 'none';
+    processImageBtn.style.display = 'none';
+    document.getElementById('power-upload-result').style.display = 'none';
+});
+
+// Process image with OCR
+processImageBtn.addEventListener('click', async () => {
+    if (!selectedFile) {
+        alert('Please select an image first');
+        return;
+    }
+    
+    const resultDiv = document.getElementById('power-upload-result');
+    
+    try {
+        resultDiv.innerHTML = `<div style="background: #d1ecf1; color: #0c5460; padding: 10px; border-radius: 5px;">
+            🔍 Processing image with OCR...
+        </div>`;
+        resultDiv.style.display = 'block';
+        
+        const formData = new FormData();
+        formData.append('image', selectedFile);
+        
+        const response = await fetch(`${API_BASE}/power-history/process-screenshot`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(error);
+        }
+        
+        const result = await response.json();
+        
+        let html = `<div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 5px;">
+            <strong>✅ ${result.message}</strong><br>
+            Successful: ${result.success_count}, Failed: ${result.failed_count}
+        `;
+        
+        if (result.errors && result.errors.length > 0) {
+            html += `<br><br><strong>Errors:</strong><br>${result.errors.join('<br>')}`;
+        }
+        
+        html += '</div>';
+        resultDiv.innerHTML = html;
+        
+        // Clear on success
+        if (result.success_count > 0) {
+            setTimeout(() => {
+                clearImageBtn.click();
+            }, 2000);
+        }
+    } catch (error) {
+        console.error('Error processing image:', error);
+        resultDiv.innerHTML = `<div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px;">
+            <strong>❌ OCR failed:</strong> ${error.message}
+        </div>`;
+    }
+});
+
 // Process power data
 document.getElementById('process-power-btn').addEventListener('click', async () => {
     const dataInput = document.getElementById('power-data-input').value.trim();
