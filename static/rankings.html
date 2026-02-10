@@ -6,6 +6,7 @@
     <title>Member Rankings - Last War: Survival</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
 </head>
 <body>
@@ -53,6 +54,26 @@
                     <div class="chart-container">
                         <h4>Points Breakdown (Top 10)</h4>
                         <canvas id="pointsBreakdownChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <section class="power-tracking-section">
+                <h3>⚡ Power History Tracking</h3>
+                <div class="power-controls">
+                    <div class="member-selector">
+                        <label for="power-member-select">Select Members:</label>
+                        <select id="power-member-select" multiple size="8">
+                            <option value="">Loading members...</option>
+                        </select>
+                        <div class="member-select-actions">
+                            <button id="select-all-members" class="secondary-btn">Select All</button>
+                            <button id="clear-all-members" class="secondary-btn">Clear All</button>
+                            <button id="load-power-chart" class="primary-btn">📈 Show Power History</button>
+                        </div>
+                    </div>
+                    <div class="power-chart-container">
+                        <canvas id="powerChart"></canvas>
                     </div>
                 </div>
             </section>

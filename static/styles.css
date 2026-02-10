@@ -2573,6 +2573,86 @@ button {
     max-height: 300px;
 }
 
+/* Power Tracking Section */
+.power-tracking-section {
+    background: white;
+    padding: 30px;
+    margin-top: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.power-tracking-section h3 {
+    color: #667eea;
+    margin-bottom: 20px;
+}
+
+.power-controls {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.member-selector {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+    border: 2px solid #e9ecef;
+}
+
+.member-selector label {
+    display: block;
+    font-weight: bold;
+    color: #495057;
+    margin-bottom: 10px;
+}
+
+.member-selector select {
+    width: 100%;
+    padding: 8px;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    font-size: 14px;
+    background: white;
+    margin-bottom: 15px;
+}
+
+.member-selector select option {
+    padding: 8px;
+}
+
+.member-select-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.member-select-actions button {
+    width: 100%;
+}
+
+.power-chart-container {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+    border: 2px solid #e9ecef;
+    min-height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.power-chart-container canvas {
+    max-height: 500px;
+}
+
+.power-chart-empty {
+    text-align: center;
+    color: #6c757d;
+    font-size: 1.1em;
+}
+
 .chart-options {
     display: flex;
     gap: 20px;
@@ -3949,6 +4029,27 @@ button {
     .charts-grid {
         grid-template-columns: 1fr;
         gap: 20px;
+    }
+
+    .power-tracking-section {
+        padding: 15px;
+    }
+
+    .power-controls {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+
+    .member-selector {
+        padding: 15px;
+    }
+
+    .member-selector select {
+        min-height: 150px;
+    }
+
+    .power-chart-container {
+        min-height: 300px;
     }
 
     .rankings-list {
