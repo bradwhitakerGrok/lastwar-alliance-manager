@@ -15,8 +15,9 @@
     --border-color: #e9ecef;
 }
 
+/* Auto theme - respects browser preference */
 @media (prefers-color-scheme: dark) {
-    :root {
+    html.theme-auto {
         color-scheme: dark;
         --bg-gradient-start: #0a1628;
         --bg-gradient-end: #1a2f4f;
@@ -26,6 +27,30 @@
         --card-bg: rgba(255, 255, 255, 0.05);
         --border-color: rgba(255, 255, 255, 0.1);
     }
+}
+
+/* Explicit dark theme */
+html.theme-dark {
+    color-scheme: dark;
+    --bg-gradient-start: #0a1628;
+    --bg-gradient-end: #1a2f4f;
+    --container-bg: #1a1f2e;
+    --text-primary: #e9ecef;
+    --text-secondary: rgba(255, 255, 255, 0.7);
+    --card-bg: rgba(255, 255, 255, 0.05);
+    --border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Explicit light theme */
+html.theme-light {
+    color-scheme: light;
+    --bg-gradient-start: #1e3c72;
+    --bg-gradient-end: #2a5298;
+    --container-bg: white;
+    --text-primary: #333;
+    --text-secondary: #666;
+    --card-bg: #f8f9fa;
+    --border-color: #e9ecef;
 }
 
 body {
@@ -214,6 +239,51 @@ header .user-info {
 .admin-only:hover {
     background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
     color: #764ba2;
+}
+
+/* Theme Options */
+.theme-section {
+    padding: 8px 0;
+    margin: 5px 0;
+}
+
+.theme-section-label {
+    padding: 8px 20px;
+    font-size: 0.85em;
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.theme-option {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    text-decoration: none;
+    color: var(--text-primary);
+    transition: all 0.2s;
+    border-radius: 8px;
+    margin: 2px 0;
+    cursor: pointer;
+    gap: 10px;
+}
+
+.theme-option:hover {
+    background: var(--card-bg);
+}
+
+.theme-option.active {
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+    font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+    html.theme-auto .theme-option:hover,
+    html.theme-dark .theme-option:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
 }
 
 #username-display {
