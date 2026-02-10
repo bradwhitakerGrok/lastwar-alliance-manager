@@ -15,11 +15,24 @@ document.addEventListener('DOMContentLoaded', () => {
     loadUsers();
     loadMembers();
     
-    // Setup logout button
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', logout);
+    // Setup dropdown logout button
+    const dropdownLogoutBtn = document.getElementById('dropdown-logout-btn');
+    if (dropdownLogoutBtn) {
+        dropdownLogoutBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            logout();
+        });
     }
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (event) => {
+        const dropdown = document.getElementById('user-dropdown-menu');
+        const usernameBtn = document.getElementById('username-display');
+        
+        if (dropdown && !usernameBtn?.contains(event.target) && !dropdown.contains(event.target)) {
+            dropdown.classList.remove('show');
+        }
+    });
 });
 
 // Logout function
@@ -62,10 +75,22 @@ async function checkAdminAccess() {
         const usernameDisplay = document.getElementById('username-display');
         if (usernameDisplay) {
             usernameDisplay.textContent = displayText;
+            
+            // Setup dropdown toggle
+            usernameDisplay.addEventListener('click', toggleUserDropdown);
         }
     } catch (error) {
         console.error('Auth check failed:', error);
         window.location.href = 'login.html';
+    }
+}
+
+// Toggle user dropdown menu
+function toggleUserDropdown(event) {
+    event.stopPropagation();
+    const dropdown = document.getElementById('user-dropdown-menu');
+    if (dropdown) {
+        dropdown.classList.toggle('show');
     }
 }
 

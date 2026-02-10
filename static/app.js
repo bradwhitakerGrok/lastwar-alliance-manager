@@ -31,13 +31,19 @@ async function checkAuth() {
         const usernameDisplay = document.getElementById('username-display');
         if (usernameDisplay) {
             usernameDisplay.textContent = displayText;
+            
+            // Setup dropdown toggle
+            usernameDisplay.addEventListener('click', toggleUserDropdown);
+        }
+        
+        // Show admin link in dropdown if user is admin
+        const adminDropdownLink = document.getElementById('admin-dropdown-link');
+        if (adminDropdownLink && isAdmin) {
+            adminDropdownLink.style.display = 'block';
         }
         
         // Show/hide management controls based on permissions
         updateUIPermissions();
-        
-        // Add admin link to navigation if user is admin
-        addAdminNavLink();
         
         return true;
     } catch (error) {
@@ -47,34 +53,24 @@ async function checkAuth() {
     }
 }
 
-// Add admin link to navigation for admin users
-function addAdminNavLink() {
-    if (!isAdmin) return;
-    
-    const navMenu = document.querySelector('.nav-menu');
-    if (!navMenu) return;
-    
-    // Check if admin link already exists
-    const existingAdminLink = navMenu.querySelector('a[href="/admin.html"]');
-    if (existingAdminLink) return;
-    
-    // Create admin link
-    const adminLink = document.createElement('a');
-    adminLink.href = '/admin.html';
-    adminLink.className = 'nav-link admin-link';
-    adminLink.innerHTML = '🔐 Admin';
-    adminLink.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-    adminLink.style.color = 'white';
-    adminLink.style.fontWeight = 'bold';
-    
-    // Insert before the last link (Profile)
-    const lastLink = navMenu.querySelector('a[href="/profile.html"]');
-    if (lastLink) {
-        navMenu.insertBefore(adminLink, lastLink);
-    } else {
-        navMenu.appendChild(adminLink);
+// Toggle user dropdown menu
+function toggleUserDropdown(event) {
+    event.stopPropagation();
+    const dropdown = document.getElementById('user-dropdown-menu');
+    if (dropdown) {
+        dropdown.classList.toggle('show');
     }
 }
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (event) => {
+    const dropdown = document.getElementById('user-dropdown-menu');
+    const usernameBtn = document.getElementById('username-display');
+    
+    if (dropdown && !usernameBtn?.contains(event.target) && !dropdown.contains(event.target)) {
+        dropdown.classList.remove('show');
+    }
+});
 
 // Update UI based on user permissions
 function updateUIPermissions() {
@@ -93,10 +89,42 @@ function updateUIPermissions() {
 }
 
 // Logout handler
-document.getElementById('logout-btn').addEventListener('click', async () => {
+async function handleLogout() {
     if (!confirm('Are you sure you want to logout?')) {
         return;
     }
+    
+    try {
+        const response = await fetch('/api/logout', {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            window.location.href = '/login.html';
+        }
+    } catch (error) {
+        console.error('Logout error:', error);
+        window.location.href = '/login.html';
+    }
+}
+
+// Setup logout buttons
+document.addEventListener('DOMContentLoaded', () => {
+    // Old logout button (if exists)
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
+    
+    // Dropdown logout button
+    const dropdownLogoutBtn = document.getElementById('dropdown-logout-btn');
+    if (dropdownLogoutBtn) {
+        dropdownLogoutBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleLogout();
+        });
+    }
+});
     
     try {
         await fetch('/api/logout', { method: 'POST' });
