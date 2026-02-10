@@ -171,7 +171,11 @@ function displayCharts(data) {
     const scoreLabels = rankings.map((r, i) => `#${i + 1} ${r.member.name}`);
     const scoreData = rankings.map(r => r.total_score);
     
-    const scoreCtx = document.getElementById('scoreChart').getContext('2d');
+    const scoreCanvas = document.getElementById('scoreChart');
+    const existingScoreChart = Chart.getChart(scoreCanvas);
+    if (existingScoreChart) existingScoreChart.destroy();
+    
+    const scoreCtx = scoreCanvas.getContext('2d');
     charts.score = new Chart(scoreCtx, {
         type: 'bar',
         data: {
@@ -204,7 +208,11 @@ function displayCharts(data) {
     const conductorCounts = rankings.map(r => ({ name: r.member.name, count: r.conductor_count }));
     conductorCounts.sort((a, b) => b.count - a.count);
     
-    const conductorCtx = document.getElementById('conductorChart').getContext('2d');
+    const conductorCanvas = document.getElementById('conductorChart');
+    const existingConductorChart = Chart.getChart(conductorCanvas);
+    if (existingConductorChart) existingConductorChart.destroy();
+    
+    const conductorCtx = conductorCanvas.getContext('2d');
     charts.conductor = new Chart(conductorCtx, {
         type: 'bar',
         data: {
@@ -235,7 +243,11 @@ function displayCharts(data) {
     
     // 3. Points Breakdown Chart (Top 10)
     const top10 = rankings.slice(0, 10);
-    const pointsBreakdownCtx = document.getElementById('pointsBreakdownChart').getContext('2d');
+    const pointsBreakdownCanvas = document.getElementById('pointsBreakdownChart');
+    const existingPointsChart = Chart.getChart(pointsBreakdownCanvas);
+    if (existingPointsChart) existingPointsChart.destroy();
+    
+    const pointsBreakdownCtx = pointsBreakdownCanvas.getContext('2d');
     charts.pointsBreakdown = new Chart(pointsBreakdownCtx, {
         type: 'bar',
         data: {
@@ -313,6 +325,12 @@ async function createMemberTimelineCharts(rankings) {
             
             const canvas = document.getElementById(`timeline-${ranking.member.id}`);
             if (!canvas) continue;
+            
+            // Destroy any existing chart on this canvas
+            const existingChart = Chart.getChart(canvas);
+            if (existingChart) {
+                existingChart.destroy();
+            }
             
             // Get member-specific settings
             const showReset = document.getElementById(`show-reset-${ranking.member.id}`)?.checked ?? true;
