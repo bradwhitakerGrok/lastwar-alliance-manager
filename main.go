@@ -3385,16 +3385,26 @@ func extractPowerDataFromImage(imageData []byte) ([]struct {
 		return nil, fmt.Errorf("failed to load image: %v", err)
 	}
 
-	// Configure Tesseract for better number recognition
+	// Configure Tesseract for better text recognition
 	client.SetPageSegMode(gosseract.PSM_AUTO)
+	client.SetWhitelist("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,. \n\t")
 
 	text, err := client.Text()
 	if err != nil {
 		return nil, fmt.Errorf("OCR failed: %v", err)
 	}
 
+	// Log the extracted text for debugging
+	log.Printf("OCR extracted text:\n%s\n---END OCR---", text)
+
 	// Parse the OCR text
-	return parsePowerRankingsText(text), nil
+	records := parsePowerRankingsText(text)
+	
+	if len(records) == 0 {
+		return nil, fmt.Errorf("no valid records found in extracted text (see server logs for OCR output)")
+	}
+	
+	return records, nil
 }
 
 // Parse power rankings text (from OCR or manual input)
@@ -3408,8 +3418,14 @@ func parsePowerRankingsText(text string) []struct {
 	}
 
 	lines := strings.Split(text, "\n")
-	// Pattern to match: name, optional whitespace/separators, then numbers (possibly with commas/spaces)
-	re := regexp.MustCompile(`^([^,\d]+?)[\s,;:|]+([0-9,\s]+)`)
+	
+	// Multiple patterns to try for matching name and power
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`^([A-Za-z0-9_]+)\s+([0-9,\s]+)$`),                    // Name Power
+		regexp.MustCompile(`^([A-Za-z0-9_]+)[\s,;:|]+([0-9,\s]+)$`),              // Name separator Power
+		regexp.MustCompile(`^([^,\d]+?)[\s,;:|]+([0-9,\s]+)$`),                   // More flexible name
+		regexp.MustCompile(`([A-Za-z0-9_]+).*?([0-9]{5,})`),                      // Name ... numbers (5+ digits)
+	}
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -3417,21 +3433,27 @@ func parsePowerRankingsText(text string) []struct {
 			continue
 		}
 
-		matches := re.FindStringSubmatch(line)
-		if len(matches) == 3 {
-			name := strings.TrimSpace(matches[1])
-			powerStr := strings.ReplaceAll(matches[2], ",", "")
-			powerStr = strings.ReplaceAll(powerStr, " ", "")
+		// Try each pattern
+		for _, re := range patterns {
+			matches := re.FindStringSubmatch(line)
+			if len(matches) >= 3 {
+				name := strings.TrimSpace(matches[1])
+				powerStr := strings.ReplaceAll(matches[2], ",", "")
+				powerStr = strings.ReplaceAll(powerStr, " ", "")
+				powerStr = strings.ReplaceAll(powerStr, ".", "")
 
-			power, err := strconv.ParseInt(powerStr, 10, 64)
-			if err == nil && power > 0 && name != "" {
-				records = append(records, struct {
-					MemberName string `json:"member_name"`
-					Power      int64  `json:"power"`
-				}{
-					MemberName: name,
-					Power:      power,
-				})
+				power, err := strconv.ParseInt(powerStr, 10, 64)
+				if err == nil && power > 1000 && name != "" && len(name) > 2 {
+					records = append(records, struct {
+						MemberName string `json:"member_name"`
+						Power      int64  `json:"power"`
+					}{
+						MemberName: name,
+						Power:      power,
+					})
+					log.Printf("Parsed: %s -> %d", name, power)
+					break // Found a match, move to next line
+				}
 			}
 		}
 	}
