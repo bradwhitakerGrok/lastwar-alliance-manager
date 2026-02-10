@@ -19,11 +19,12 @@
 
         <nav class="nav-menu">
             <a href="/" class="nav-link">👥 Members</a>
-            <a href="/train.html" class="nav-link">🚂 Train Schedule</a>
+            <a href="/train.html" class="nav-link">🚂 Train</a>
             <a href="/awards.html" class="nav-link">🏆 Awards</a>
-            <a href="/recommendations.html" class="nav-link">⭐ Recommendations</a>
+            <a href="/recommendations.html" class="nav-link">⭐ Recs</a>
             <a href="/rankings.html" class="nav-link">📊 Rankings</a>
-            <a href="/storm.html" class="nav-link">🏜️ Desert Storm</a>
+            <a href="/storm.html" class="nav-link">🏜️ Storm</a>
+            <a href="/power.html" class="nav-link">⚡ Power</a>
             <a href="/settings.html" class="nav-link active">⚙️ Settings</a>
             <a href="/profile.html" class="nav-link">👤 Profile</a>
         </nav>
@@ -109,42 +110,10 @@
                             <span class="help-text">When enabled, you can upload power rankings screenshots to track member power history</span>
                         </div>
                         
-                        <div id="power-upload-section" style="display: none; margin-top: 20px; padding: 20px; background: white; border-radius: 10px; border: 2px solid #667eea;">
-                            <h5 style="margin: 0 0 15px 0; color: #667eea;">📸 Upload Power Rankings</h5>
-                            
-                            <!-- Tab selection -->
-                            <div style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #e9ecef;">
-                                <button type="button" id="tab-image" class="tab-button active" style="padding: 10px 20px; border: none; background: none; cursor: pointer; border-bottom: 3px solid #667eea; font-weight: bold; color: #667eea;">📷 Image Upload</button>
-                                <button type="button" id="tab-text" class="tab-button" style="padding: 10px 20px; border: none; background: none; cursor: pointer; border-bottom: 3px solid transparent; color: #6c757d;">✍️ Manual Entry</button>
-                            </div>
-                            
-                            <!-- Image upload tab -->
-                            <div id="image-upload-tab" class="upload-tab">
-                                <p style="font-size: 0.9em; color: #6c757d; margin-bottom: 15px;">Upload a screenshot of power rankings (supports OCR)</p>
-                                <input type="file" id="power-image-input" accept="image/*" style="display: none;">
-                                <div id="image-drop-zone" style="border: 2px dashed #dee2e6; border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; background: #f8f9fa;">
-                                    <div id="drop-zone-content">
-                                        <span style="font-size: 48px;">📁</span>
-                                        <p style="margin: 10px 0 5px 0; font-weight: bold;">Click to upload or drag & drop</p>
-                                        <p style="margin: 0; font-size: 0.9em; color: #6c757d;">PNG, JPG, JPEG - Max 10MB</p>
-                                    </div>
-                                    <div id="image-preview" style="display: none;">
-                                        <img id="preview-img" style="max-width: 100%; max-height: 300px; border-radius: 8px; margin-bottom: 10px;">
-                                        <p id="preview-filename" style="margin: 5px 0; font-size: 0.9em; color: #6c757d;"></p>
-                                        <button type="button" id="clear-image-btn" class="secondary-btn" style="margin-top: 10px;">🗑️ Remove Image</button>
-                                    </div>
-                                </div>
-                                <button type="button" id="process-image-btn" class="primary-btn" style="margin-top: 15px; width: 100%; display: none;">🔍 Process Image with OCR</button>
-                            </div>
-                            
-                            <!-- Manual text entry tab -->
-                            <div id="text-upload-tab" class="upload-tab" style="display: none;">
-                                <p style="font-size: 0.9em; color: #6c757d; margin-bottom: 15px;">Paste power data (one per line): Name, Power</p>
-                                <textarea id="power-data-input" rows="10" placeholder="Example:&#10;Gary6126, 71407341&#10;Anjel87, 55456932&#10;ileesu, 52325609" style="width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 8px; font-family: monospace; font-size: 14px;"></textarea>
-                                <button type="button" id="process-power-btn" class="primary-btn" style="margin-top: 10px; width: 100%;">📤 Upload Power Data</button>
-                            </div>
-                            
-                            <div id="power-upload-result" style="margin-top: 15px; display: none;"></div>
+                        <div id="power-upload-link" style="display: none; margin-top: 15px; padding: 15px; background: #eff0fb; border-radius: 8px; border: 2px solid #667eea;">
+                            <p style="margin: 0 0 10px 0; color: #667eea; font-weight: bold;">📱 Power Upload Available</p>
+                            <p style="margin: 0 0 10px 0; font-size: 14px;">Visit the dedicated Power page to upload screenshots or manually enter power data.</p>
+                            <a href="/power.html" class="primary-btn" style="display: inline-block; text-decoration: none; padding: 10px 20px;">⚡ Go to Power Upload</a>
                         </div>
                     </div>
 
