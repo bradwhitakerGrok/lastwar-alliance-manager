@@ -3339,10 +3339,32 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 			return events[i].Date < events[j].Date
 		})
 
+		// Get power history for this member
+		powerHistoryMap := make(map[string]int)
+		powerRows, err := db.Query(`
+			SELECT DATE(recorded_at) as power_date, 
+			       MAX(power) as max_power
+			FROM power_history 
+			WHERE member_id = ? AND DATE(recorded_at) >= ?
+			GROUP BY DATE(recorded_at)
+			ORDER BY power_date ASC
+		`, member.ID, formatDateString(startDate))
+		if err == nil {
+			for powerRows.Next() {
+				var powerDate string
+				var maxPower int
+				if err := powerRows.Scan(&powerDate, &maxPower); err == nil {
+					powerHistoryMap[powerDate] = maxPower
+				}
+			}
+			powerRows.Close()
+		}
+
 		// Build weekly timeline arrays
 		weekLabels := []string{}
 		pointsWithReset := []int{}
 		pointsCumulative := []int{}
+		powerValues := []int{}
 
 		currentPoints := 0
 		cumulativePoints := 0
@@ -3389,8 +3411,19 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 				currentPoints = 0
 			}
 
+			// Find max power value for this week
+			weekMaxPower := 0
+			for powerDate, power := range powerHistoryMap {
+				if powerDate >= weekStartStr && powerDate <= weekEndStr {
+					if power > weekMaxPower {
+						weekMaxPower = power
+					}
+				}
+			}
+
 			pointsWithReset = append(pointsWithReset, currentPoints)
 			pointsCumulative = append(pointsCumulative, cumulativePoints)
+			powerValues = append(powerValues, weekMaxPower)
 
 			currentDate = currentDate.AddDate(0, 0, 7)
 		}
@@ -3413,6 +3446,7 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 			"points_with_reset": pointsWithReset,
 			"points_cumulative": pointsCumulative,
 			"conductor_dates":   conductorWeekLabels,
+			"power":             powerValues,
 		}
 	}
 
