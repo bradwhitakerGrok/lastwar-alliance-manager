@@ -317,6 +317,17 @@ button {
     font-weight: 600;
 }
 
+.member-power {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 15px;
+    font-size: 0.85em;
+    font-weight: 600;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    cursor: help;
+}
+
 .rank-R5 {
     background: #ffd700;
     color: #856404;

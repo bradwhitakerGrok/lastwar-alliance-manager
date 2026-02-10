@@ -97,6 +97,12 @@ function displayMembers(members) {
         const eligibleStatus = member.eligible !== false ? '✓ Eligible' : '✗ Not Eligible';
         const eligibleClass = member.eligible !== false ? 'eligible' : 'not-eligible';
         
+        // Format power display
+        let powerDisplay = '';
+        if (member.power) {
+            powerDisplay = `<span class="member-power" title="${member.power.toLocaleString()}">${formatPower(member.power)}</span>`;
+        }
+        
         let actionsHtml = '';
         if (canManageRanks) {
             actionsHtml = `
@@ -114,12 +120,28 @@ function displayMembers(members) {
                 <div class="member-info">
                     <div class="member-name">${escapeHtml(member.name)}</div>
                     <span class="member-rank rank-${member.rank.replace(/\s+/g, '-')}">${escapeHtml(member.rank)}</span>
+                    ${powerDisplay}
                     <span class="member-eligible ${eligibleClass}">${eligibleStatus}</span>
                 </div>
                 ${actionsHtml}
             </div>
         `;
     }).join('');
+}
+
+// Format power value with K/M/B suffixes
+function formatPower(power) {
+    if (!power) return '';
+    
+    if (power >= 1000000000) {
+        return '⚡ ' + (power / 1000000000).toFixed(2) + 'B';
+    } else if (power >= 1000000) {
+        return '⚡ ' + (power / 1000000).toFixed(2) + 'M';
+    } else if (power >= 1000) {
+        return '⚡ ' + (power / 1000).toFixed(1) + 'K';
+    } else {
+        return '⚡ ' + power.toString();
+    }
 }
 
 // Update member count

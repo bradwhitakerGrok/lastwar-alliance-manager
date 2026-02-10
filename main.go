@@ -32,10 +32,11 @@ import (
 )
 
 type Member struct {
-	ID       int    `json:"id"`
-	Name     string `json:"name"`
-	Rank     string `json:"rank"`
-	Eligible bool   `json:"eligible"`
+	ID       int     `json:"id"`
+	Name     string  `json:"name"`
+	Rank     string  `json:"rank"`
+	Eligible bool    `json:"eligible"`
+	Power    *int64  `json:"power,omitempty"`
 }
 
 type MemberStats struct {
@@ -1312,7 +1313,17 @@ func checkAuth(w http.ResponseWriter, r *http.Request) {
 
 // Get all members
 func getMembers(w http.ResponseWriter, r *http.Request) {
-	rows, err := db.Query("SELECT id, name, rank, COALESCE(eligible, 1) FROM members ORDER BY name")
+	query := `
+		SELECT m.id, m.name, m.rank, COALESCE(m.eligible, 1),
+		       (SELECT ph.power 
+		        FROM power_history ph 
+		        WHERE ph.member_id = m.id 
+		        ORDER BY ph.recorded_at DESC 
+		        LIMIT 1) as latest_power
+		FROM members m
+		ORDER BY m.name
+	`
+	rows, err := db.Query(query)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1322,7 +1333,7 @@ func getMembers(w http.ResponseWriter, r *http.Request) {
 	members := []Member{}
 	for rows.Next() {
 		var m Member
-		if err := rows.Scan(&m.ID, &m.Name, &m.Rank, &m.Eligible); err != nil {
+		if err := rows.Scan(&m.ID, &m.Name, &m.Rank, &m.Eligible, &m.Power); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
