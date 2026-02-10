@@ -3418,42 +3418,65 @@ func parsePowerRankingsText(text string) []struct {
 	}
 
 	lines := strings.Split(text, "\n")
-
-	// Multiple patterns to try for matching name and power
-	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`^([A-Za-z0-9_]+)\s+([0-9,\s]+)$`),       // Name Power
-		regexp.MustCompile(`^([A-Za-z0-9_]+)[\s,;:|]+([0-9,\s]+)$`), // Name separator Power
-		regexp.MustCompile(`^([^,\d]+?)[\s,;:|]+([0-9,\s]+)$`),      // More flexible name
-		regexp.MustCompile(`([A-Za-z0-9_]+).*?([0-9]{5,})`),         // Name ... numbers (5+ digits)
-	}
+	
+	// Pattern specifically for Last War rankings format
+	// Matches: optional rank badge (R4, R3), name (letters/numbers), then large power number
+	// Examples: "R4 Gary6126 73716853", "Anjel87 57250482", "R3 DYNOSUR 53913479"
+	rankPattern := regexp.MustCompile(`(?:R[0-9]\s+)?([A-Za-z][A-Za-z0-9_\s]*?)\s+([0-9]{7,})`)
+	
+	// Alternative simpler pattern: any word followed by 7+ digit number
+	simplePattern := regexp.MustCompile(`([A-Za-z][A-Za-z0-9_]+)\s+([0-9]{7,})`)
+	
+	// Track seen names to avoid duplicates from multi-line OCR
+	seenNames := make(map[string]bool)
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
+		
+		// Skip lines that are clearly UI elements or rank numbers
+		if len(line) < 5 || regexp.MustCompile(`^[0-9]{1,2}$`).MatchString(line) {
+			continue
+		}
+		
+		// Skip common UI text
+		lowerLine := strings.ToLower(line)
+		if strings.Contains(lowerLine, "ranking") || 
+		   strings.Contains(lowerLine, "commander") || 
+		   strings.Contains(lowerLine, "power") ||
+		   strings.Contains(lowerLine, "kills") ||
+		   strings.Contains(lowerLine, "donation") {
+			continue
+		}
 
-		// Try each pattern
-		for _, re := range patterns {
-			matches := re.FindStringSubmatch(line)
-			if len(matches) >= 3 {
-				name := strings.TrimSpace(matches[1])
-				powerStr := strings.ReplaceAll(matches[2], ",", "")
-				powerStr = strings.ReplaceAll(powerStr, " ", "")
-				powerStr = strings.ReplaceAll(powerStr, ".", "")
+		// Try rank pattern first (for lines with R4, R3, etc.)
+		matches := rankPattern.FindStringSubmatch(line)
+		if len(matches) == 0 {
+			// Try simple pattern
+			matches = simplePattern.FindStringSubmatch(line)
+		}
+		
+		if len(matches) >= 3 {
+			name := strings.TrimSpace(matches[1])
+			powerStr := strings.ReplaceAll(matches[2], ",", "")
+			powerStr = strings.ReplaceAll(powerStr, " ", "")
 
-				power, err := strconv.ParseInt(powerStr, 10, 64)
-				if err == nil && power > 1000 && name != "" && len(name) > 2 {
-					records = append(records, struct {
-						MemberName string `json:"member_name"`
-						Power      int64  `json:"power"`
-					}{
-						MemberName: name,
-						Power:      power,
-					})
-					log.Printf("Parsed: %s -> %d", name, power)
-					break // Found a match, move to next line
-				}
+			power, err := strconv.ParseInt(powerStr, 10, 64)
+			
+			// Validate: power should be realistic (1M to 1B range), name should be reasonable
+			if err == nil && power >= 1000000 && power <= 9999999999 && 
+			   len(name) >= 3 && len(name) <= 30 && !seenNames[name] {
+				records = append(records, struct {
+					MemberName string `json:"member_name"`
+					Power      int64  `json:"power"`
+				}{
+					MemberName: name,
+					Power:      power,
+				})
+				seenNames[name] = true
+				log.Printf("Parsed: %s -> %d", name, power)
 			}
 		}
 	}
