@@ -201,7 +201,7 @@ document.getElementById('process-text-btn').addEventListener('click', async () =
     const text = textInput.value.trim();
     
     if (!text) {
-        showResult('Please enter some power data', 'error');
+        showResult('Please enter some data', 'error');
         return;
     }
     

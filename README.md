@@ -36,16 +36,17 @@ A comprehensive Go web application for managing your alliance in the online game
 - **Placeholder System**: Dynamic message generation with member names, ranks, dates, and times
 - **Copy-to-Clipboard**: Easy copying of generated messages for in-game chat
 
-### Power Tracking with Image Recognition
-- **Screenshot OCR**: Upload power rankings screenshots for automatic data extraction
+### Screenshot Upload with Image Recognition
+- **OCR Processing**: Upload game screenshots for automatic data extraction using Tesseract OCR
 - **Intelligent Image Preprocessing**: AI-powered region detection and enhancement
   - Automatically detects and crops data regions (removes headers, tabs, buttons)
-  - Enhances contrast and applies adaptive thresholding for better text recognition
-  - Filters out UI elements to focus only on player data
-- **Smart Parsing**: Advanced pattern matching for names and power values
+  - Enhances contrast and applies scaling for better text recognition
+  - Filters out UI elements to focus only on relevant data
+- **Smart Parsing**: Advanced pattern matching for names and numeric values
 - **Fuzzy Member Matching**: Automatically matches OCR text to database members
 - **Manual Entry**: Alternative text-based input for manual data entry
 - **Power History Tracking**: Track member power progression over time
+- **Mobile-Friendly Interface**: Dedicated upload page optimized for mobile devices
 
 See [IMAGE_RECOGNITION.md](IMAGE_RECOGNITION.md) for detailed technical documentation on the image analysis system.
 

@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Power Rankings - Last War: Survival</title>
+    <title>Screenshot Upload - Last War: Survival</title>
     <link rel="stylesheet" href="styles.css">
     <style>
-        /* Mobile-first power upload styles */
-        .power-container {
+        /* Mobile-first screenshot upload styles */
+        .upload-container {
             max-width: 800px;
             margin: 0 auto;
             padding: 10px;
@@ -229,7 +229,7 @@
     <div class="container">
         <header>
             <h1>🎮 Last War: Survival</h1>
-            <h2>📊 Power Rankings Upload</h2>
+            <h2>� Screenshot Upload</h2>
             <div class="user-info">
                 <span id="username-display"></span>
                 <button id="logout-btn" class="logout-btn">Logout</button>
@@ -243,15 +243,25 @@
             <a href="/recommendations.html" class="nav-link">⭐ Recs</a>
             <a href="/rankings.html" class="nav-link">📊 Rankings</a>
             <a href="/storm.html" class="nav-link">🏜️ Storm</a>
-            <a href="/power.html" class="nav-link active">⚡ Power</a>
+            <a href="/upload.html" class="nav-link active">📸 Upload</a>
             <a href="/settings.html" class="nav-link">⚙️ Settings</a>
             <a href="/profile.html" class="nav-link">👤 Profile</a>
         </nav>
 
-        <main class="power-container">
+        <main class="upload-container">
             <div class="upload-section">
-                <h3 style="margin-top: 0;">📸 Upload Power Rankings</h3>
-                <p class="help-text">Upload screenshots or manually enter power data to track member strength over time.</p>
+                <h3 style="margin-top: 0;">📸 Upload Screenshots</h3>
+                <p class="help-text">Upload game screenshots to automatically extract data using OCR, or enter data manually.</p>
+                
+                <div class="screenshot-types" style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                    <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">📋 Supported Screenshot Types:</p>
+                    <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
+                        <li><strong>⚡ Power Rankings</strong> - Track member power progression over time</li>
+                        <li><strong>🏆 Event Scores</strong> - Record weekly competition results</li>
+                        <li><strong>📊 Statistics</strong> - Capture member performance data</li>
+                        <li><strong>📈 Other Data</strong> - Any text-based game screenshots</li>
+                    </ul>
+                </div>
 
                 <!-- Tab Buttons -->
                 <div class="tab-buttons">
@@ -261,7 +271,7 @@
 
                 <!-- Image Upload Tab -->
                 <div id="tab-image" class="tab-content active">
-                    <p class="help-text">Take a screenshot of the Power Rankings screen and upload it. Our OCR system will automatically extract the data.</p>
+                    <p class="help-text">Take a screenshot from the game and upload it. Our OCR system will automatically extract text data from the image.</p>
                     
                     <input type="file" id="image-input" accept="image/*" style="display: none;">
                     
@@ -286,12 +296,12 @@
 
                 <!-- Manual Entry Tab -->
                 <div id="tab-text" class="tab-content">
-                    <p class="help-text">Enter power data manually, one member per line in format: Name, Power</p>
-                    <p class="help-text" style="font-style: italic; font-size: 13px;">Example: Gary6126, 71407341</p>
+                    <p class="help-text">Enter data manually, one entry per line in format: Name, Value</p>
+                    <p class="help-text" style="font-style: italic; font-size: 13px;">Example for Power: Gary6126, 71407341</p>
                     
                     <textarea id="text-input" class="text-input" placeholder="Gary6126, 71407341&#10;Anjel87, 55456932&#10;ileesu, 52325609&#10;DYNOSUR, 51234567"></textarea>
                     
-                    <button id="process-text-btn" class="btn btn-primary">📤 Upload Power Data</button>
+                    <button id="process-text-btn" class="btn btn-primary">📤 Upload Data</button>
                 </div>
 
                 <!-- Result Display -->
@@ -300,6 +310,6 @@
         </main>
     </div>
 
-    <script src="power.js"></script>
+    <script src="upload.js"></script>
 </body>
 </html>
