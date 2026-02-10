@@ -56,6 +56,11 @@ sudo apt upgrade -y
 echo -e "${GREEN}[2/10] Installing build dependencies...${NC}"
 sudo apt install -y gcc build-essential curl wget git ufw fail2ban sqlite3
 
+# Install OCR dependencies
+echo -e "${GREEN}[2a/10] Installing OCR dependencies...${NC}"
+sudo apt install -y tesseract-ocr tesseract-ocr-all libtesseract-dev libleptonica-dev
+echo "Tesseract OCR installed: $(tesseract --version | head -n1)"
+
 # Install Go
 echo -e "${GREEN}[3/10] Installing Go...${NC}"
 if ! command -v go &> /dev/null; then

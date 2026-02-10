@@ -94,7 +94,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 if [ "$UPDATE_METHOD" = "git" ]; then
     echo ""
-    echo -e "${YELLOW}[3/8] Pulling latest changes from git...${NC}"
+    echo -e "${YELLOW}[3/8] Updating system dependencies...${NC}"
+    sudo apt update
+    sudo apt install -y tesseract-ocr tesseract-ocr-all libtesseract-dev libleptonica-dev
+    echo "OCR dependencies updated"
+    
+    echo ""
+    echo -e "${YELLOW}[4/8] Pulling latest changes from git...${NC}"
     cd $APP_DIR
     
     # Stash any local changes (like .env)
@@ -112,7 +118,13 @@ if [ "$UPDATE_METHOD" = "git" ]; then
     
 else
     echo ""
-    echo -e "${YELLOW}[3/8] Copying new files...${NC}"
+    echo -e "${YELLOW}[3/8] Updating system dependencies...${NC}"
+    sudo apt update
+    sudo apt install -y tesseract-ocr tesseract-ocr-all libtesseract-dev libleptonica-dev
+    echo "OCR dependencies updated"
+    
+    echo ""
+    echo -e "${YELLOW}[4/8] Copying new files...${NC}"
     
     # Check if we're running from the source directory
     if [ ! -f "$SCRIPT_DIR/main.go" ]; then
@@ -143,7 +155,7 @@ else
 fi
 
 echo ""
-echo -e "${YELLOW}[4/8] Checking Go installation...${NC}"
+echo -e "${YELLOW}[5/8] Checking Go installation...${NC}"
 if ! command -v go &> /dev/null; then
     echo -e "${RED}Go is not installed!${NC}"
     exit 1
@@ -151,7 +163,7 @@ fi
 echo "Go version: $(go version)"
 
 echo ""
-echo -e "${YELLOW}[5/8] Building application...${NC}"
+echo -e "${YELLOW}[6/8] Building application...${NC}"
 cd $APP_DIR
 
 # Download dependencies if needed
@@ -176,18 +188,18 @@ sudo chown $APP_USER:$APP_USER alliance-manager
 echo -e "${GREEN}Build successful${NC}"
 
 echo ""
-echo -e "${YELLOW}[6/8] Setting permissions...${NC}"
+echo -e "${YELLOW}[7/8] Setting permissions...${NC}"
 sudo chown -R $APP_USER:$APP_USER $APP_DIR/alliance-manager
 sudo chown -R $APP_USER:$APP_USER $APP_DIR/static
 sudo chmod +x $APP_DIR/alliance-manager
 
 echo ""
-echo -e "${YELLOW}[7/8] Starting application...${NC}"
+echo -e "${YELLOW}[8/8] Starting application...${NC}"
 sudo systemctl start $APP_NAME
 sleep 2
 
 echo ""
-echo -e "${YELLOW}[8/8] Verifying deployment...${NC}"
+echo -e "${YELLOW}[9/9] Verifying deployment...${NC}"
 if sudo systemctl is-active --quiet $APP_NAME; then
     echo -e "${GREEN}✓ Application is running${NC}"
     sudo systemctl status $APP_NAME --no-pager -l | head -n 20
