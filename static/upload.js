@@ -1,6 +1,7 @@
 const API_BASE = '/api';
 
-let selectedFile = null;
+let selectedFiles = []; // Array to hold multiple files
+const MAX_FILES = 25;
 
 // Check authentication
 async function checkAuth() {
@@ -55,8 +56,8 @@ const imageInput = document.getElementById('image-input');
 const dropZone = document.getElementById('drop-zone');
 const dropContent = document.getElementById('drop-content');
 const previewContainer = document.getElementById('preview-container');
-const previewImg = document.getElementById('preview-img');
-const previewFilename = document.getElementById('preview-filename');
+const previewGallery = document.getElementById('preview-gallery');
+const filesCount = document.getElementById('files-count');
 const processImageBtn = document.getElementById('process-image-btn');
 const clearBtn = document.getElementById('clear-btn');
 
@@ -65,16 +66,16 @@ dropZone.addEventListener('click', (e) => {
     if (e.target === clearBtn || clearBtn.contains(e.target)) {
         return; // Don't trigger file input if clicking clear button
     }
-    if (!selectedFile) {
+    if (selectedFiles.length === 0) {
         imageInput.click();
     }
 });
 
 // File selection
 imageInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        handleFile(file);
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+        handleFiles(files);
     }
 });
 
@@ -92,55 +93,101 @@ dropZone.addEventListener('drop', (e) => {
     e.preventDefault();
     dropZone.classList.remove('dragover');
     
-    const file = e.dataTransfer.files[0];
-    if (file) {
-        handleFile(file);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+        handleFiles(files);
     }
 });
 
-function handleFile(file) {
-    if (!file.type.startsWith('image/')) {
-        showResult('Please upload an image file (PNG, JPG, JPEG)', 'error');
+function handleFiles(files) {
+    // Filter image files only
+    let imageFiles = files.filter(file => file.type.startsWith('image/'));
+    
+    if (imageFiles.length === 0) {
+        showResult('Please upload image files (PNG, JPG, JPEG)', 'error');
         return;
     }
     
-    if (file.size > 10 * 1024 * 1024) {
-        showResult('File size must be less than 10MB', 'error');
-        return;
+    // Check file size
+    const oversizedFiles = imageFiles.filter(file => file.size > 10 * 1024 * 1024);
+    if (oversizedFiles.length > 0) {
+        showResult(`${oversizedFiles.length} file(s) exceed 10MB limit and will be skipped`, 'error');
+        imageFiles = imageFiles.filter(file => file.size <= 10 * 1024 * 1024);
     }
     
-    selectedFile = file;
+    // Check total count
+    if (selectedFiles.length + imageFiles.length > MAX_FILES) {
+        showResult(`Maximum ${MAX_FILES} files allowed. Only adding first ${MAX_FILES - selectedFiles.length} files.`, 'error');
+        imageFiles = imageFiles.slice(0, MAX_FILES - selectedFiles.length);
+    }
     
-    // Show preview
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        previewImg.src = e.target.result;
-        previewFilename.textContent = file.name;
-        dropContent.style.display = 'none';
-        previewContainer.style.display = 'block';
-        processImageBtn.style.display = 'block';
-    };
-    reader.readAsDataURL(file);
+    // Add to selected files
+    imageFiles.forEach(file => {
+        selectedFiles.push(file);
+    });
+    
+    updatePreview();
     
     // Clear any previous results
     document.getElementById('result-container').innerHTML = '';
 }
 
-// Clear image
+function updatePreview() {
+    if (selectedFiles.length === 0) {
+        previewContainer.style.display = 'none';
+        dropContent.style.display = 'block';
+        processImageBtn.style.display = 'none';
+        return;
+    }
+    
+    filesCount.textContent = `${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''} selected`;
+    previewGallery.innerHTML = '';
+    
+    selectedFiles.forEach((file, index) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const previewItem = document.createElement('div');
+            previewItem.className = 'preview-item';
+            previewItem.innerHTML = `
+                <button class="remove-file" data-index="${index}" title="Remove">×</button>
+                <img src="${e.target.result}" class="preview-img" alt="${file.name}">
+                <div class="file-name" title="${file.name}">${file.name}</div>
+            `;
+            
+            // Add remove handler
+            previewItem.querySelector('.remove-file').addEventListener('click', (evt) => {
+                evt.stopPropagation();
+                removeFile(index);
+            });
+            
+            previewGallery.appendChild(previewItem);
+        };
+        reader.readAsDataURL(file);
+    });
+    
+    dropContent.style.display = 'none';
+    previewContainer.style.display = 'block';
+    processImageBtn.style.display = 'block';
+}
+
+function removeFile(index) {
+    selectedFiles.splice(index, 1);
+    updatePreview();
+}
+
+// Clear all images
 clearBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    selectedFile = null;
+    selectedFiles = [];
     imageInput.value = '';
-    previewContainer.style.display = 'none';
-    dropContent.style.display = 'block';
-    processImageBtn.style.display = 'none';
+    updatePreview();
     document.getElementById('result-container').innerHTML = '';
 });
 
 // Process image with OCR
 processImageBtn.addEventListener('click', async () => {
-    if (!selectedFile) {
-        showResult('Please select an image first', 'error');
+    if (selectedFiles.length === 0) {
+        showResult('Please select at least one image', 'error');
         return;
     }
     
@@ -149,46 +196,72 @@ processImageBtn.addEventListener('click', async () => {
     processImageBtn.disabled = true;
     
     try {
-        showResult('🔍 Processing image with OCR...', 'info');
+        showResult(`🔍 Processing ${selectedFiles.length} image${selectedFiles.length > 1 ? 's' : ''} with OCR...`, 'info');
         
-        const formData = new FormData();
-        formData.append('image', selectedFile);
+        let totalSuccess = 0;
+        let totalFailed = 0;
+        const allErrors = [];
         
-        const response = await fetch(`${API_BASE}/power-history/process-screenshot`, {
-            method: 'POST',
-            body: formData
-        });
-        
-        if (!response.ok) {
-            const error = await response.text();
-            throw new Error(error);
+        // Process files sequentially to avoid overwhelming the server
+        for (let i = 0; i < selectedFiles.length; i++) {
+            const file = selectedFiles[i];
+            
+            showResult(`🔍 Processing image ${i + 1} of ${selectedFiles.length}: ${file.name}...`, 'info');
+            
+            try {
+                const formData = new FormData();
+                formData.append('image', file);
+                
+                const response = await fetch(`${API_BASE}/power-history/process-screenshot`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+                
+                const result = await response.json();
+                totalSuccess += result.success_count || 0;
+                totalFailed += result.failed_count || 0;
+                
+                if (result.errors && result.errors.length > 0) {
+                    allErrors.push(`<strong>${file.name}:</strong> ${result.errors.join(', ')}`);
+                }
+            } catch (error) {
+                console.error(`Error processing ${file.name}:`, error);
+                allErrors.push(`<strong>${file.name}:</strong> ${error.message}`);
+                totalFailed++;
+            }
         }
         
-        const result = await response.json();
-        
+        // Show final results
         let html = `<div class="result-box result-success">
-            <strong>✅ ${result.message}</strong><br>
+            <strong>✅ Processed ${selectedFiles.length} image${selectedFiles.length > 1 ? 's' : ''}</strong><br>
             <div style="margin-top: 10px;">
-                <strong>Successful:</strong> ${result.success_count} | 
-                <strong>Failed:</strong> ${result.failed_count}
+                <strong>Total Successful:</strong> ${totalSuccess} | 
+                <strong>Total Failed:</strong> ${totalFailed}
             </div>`;
         
-        if (result.errors && result.errors.length > 0) {
-            html += `<br><br><strong>Errors:</strong><br><div style="max-height: 200px; overflow-y: auto; margin-top: 5px;">${result.errors.join('<br>')}</div>`;
+        if (allErrors.length > 0) {
+            html += `<br><br><strong>Errors:</strong><br><div style="max-height: 200px; overflow-y: auto; margin-top: 5px;">${allErrors.join('<br>')}</div>`;
         }
         
         html += '</div>';
         document.getElementById('result-container').innerHTML = html;
         
         // Clear on success after delay
-        if (result.success_count > 0) {
+        if (totalSuccess > 0) {
             setTimeout(() => {
-                clearBtn.click();
-            }, 2000);
+                selectedFiles = [];
+                imageInput.value = '';
+                updatePreview();
+            }, 3000);
         }
     } catch (error) {
-        console.error('Error processing image:', error);
-        showResult(`❌ OCR failed: ${error.message}`, 'error');
+        console.error('Error processing images:', error);
+        showResult(`❌ Processing failed: ${error.message}`, 'error');
     } finally {
         processImageBtn.innerHTML = originalText;
         processImageBtn.disabled = false;
