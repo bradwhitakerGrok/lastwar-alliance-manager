@@ -7,13 +7,13 @@ let currentEditUserId = null;
 let currentResetUserId = null;
 
 // Initialize
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // Check if user is admin
-    checkAdminAccess();
+    await checkAdminAccess();
     
     // Load initial data
-    loadUsers();
-    loadMembers();
+    await loadUsers();
+    await loadMembers();
     
     // Setup dropdown logout button
     const dropdownLogoutBtn = document.getElementById('dropdown-logout-btn');
@@ -78,6 +78,12 @@ async function checkAdminAccess() {
             
             // Setup dropdown toggle
             usernameDisplay.addEventListener('click', toggleUserDropdown);
+        }
+        
+        // Show admin link since user is admin
+        const adminLink = document.getElementById('admin-dropdown-link');
+        if (adminLink && data.is_admin) {
+            adminLink.style.display = 'block';
         }
     } catch (error) {
         console.error('Auth check failed:', error);
