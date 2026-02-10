@@ -88,53 +88,6 @@ function updateUIPermissions() {
     }
 }
 
-// Logout handler
-async function handleLogout() {
-    if (!confirm('Are you sure you want to logout?')) {
-        return;
-    }
-    
-    try {
-        const response = await fetch('/api/logout', {
-            method: 'POST'
-        });
-        
-        if (response.ok) {
-            window.location.href = '/login.html';
-        }
-    } catch (error) {
-        console.error('Logout error:', error);
-        window.location.href = '/login.html';
-    }
-}
-
-// Setup logout buttons
-document.addEventListener('DOMContentLoaded', () => {
-    // Old logout button (if exists)
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', handleLogout);
-    }
-    
-    // Dropdown logout button
-    const dropdownLogoutBtn = document.getElementById('dropdown-logout-btn');
-    if (dropdownLogoutBtn) {
-        dropdownLogoutBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            handleLogout();
-        });
-    }
-});
-    
-    try {
-        await fetch('/api/logout', { method: 'POST' });
-        window.location.href = '/login.html';
-    } catch (error) {
-        console.error('Logout error:', error);
-        alert('Error logging out. Please try again.');
-    }
-});
-
 // Load all members
 async function loadMembers() {
     try {
@@ -347,6 +300,26 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// Logout handler
+async function handleLogout() {
+    if (!confirm('Are you sure you want to logout?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/logout', {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            window.location.href = '/login.html';
+        }
+    } catch (error) {
+        console.error('Logout error:', error);
+        window.location.href = '/login.html';
+    }
+}
+
 // Load members when page loads
 document.addEventListener('DOMContentLoaded', async () => {
     const isAuthenticated = await checkAuth();
@@ -354,8 +327,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadMembers();
         setupCSVImport();
         setupSearch();
+        setupLogoutButtons();
     }
 });
+
+// Setup logout buttons
+function setupLogoutButtons() {
+    // Old logout button (if exists)
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
+    
+    // Dropdown logout button
+    const dropdownLogoutBtn = document.getElementById('dropdown-logout-btn');
+    if (dropdownLogoutBtn) {
+        dropdownLogoutBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleLogout();
+        });
+    }
+}
 
 // Setup search functionality
 function setupSearch() {
