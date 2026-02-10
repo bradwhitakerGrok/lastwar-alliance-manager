@@ -28,15 +28,60 @@ async function checkAuth() {
     }
 }
 
-// Logout
-document.getElementById('logout-btn').addEventListener('click', async () => {
+// Setup event listeners after auth check
+async function setupEventListeners() {
+    const usernameDisplay = document.getElementById('username-display');
+    const logoutBtn = document.getElementById('dropdown-logout-btn');
+    const adminLink = document.getElementById('admin-dropdown-link');
+    
+    if (usernameDisplay) {
+        usernameDisplay.addEventListener('click', toggleUserDropdown);
+    }
+    
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
+    
+    // Check if user is admin to show admin link
+    try {
+        const response = await fetch(`${API_BASE}/check-auth`);
+        const data = await response.json();
+        if (data.is_admin && adminLink) {
+            adminLink.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Error checking admin status:', error);
+    }
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (event) => {
+        const dropdown = document.getElementById('user-dropdown-menu');
+        const usernameBtn = document.getElementById('username-display');
+        if (dropdown && usernameBtn && !usernameBtn.contains(event.target) && !dropdown.contains(event.target)) {
+            dropdown.classList.remove('show');
+        }
+    });
+}
+
+// Toggle user dropdown menu
+function toggleUserDropdown(event) {
+    event.stopPropagation();
+    const dropdown = document.getElementById('user-dropdown-menu');
+    if (dropdown) {
+        dropdown.classList.toggle('show');
+    }
+}
+
+// Logout handler
+async function handleLogout(event) {
+    event.preventDefault();
     try {
         await fetch(`${API_BASE}/logout`, { method: 'POST' });
         window.location.href = '/login.html';
     } catch (error) {
         console.error('Logout failed:', error);
     }
-});
+}
 
 // Change password
 document.getElementById('password-form').addEventListener('submit', async (e) => {
@@ -82,4 +127,5 @@ document.getElementById('password-form').addEventListener('submit', async (e) =>
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     await checkAuth();
+    await setupEventListeners();
 });

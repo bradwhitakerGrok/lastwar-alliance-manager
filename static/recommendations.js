@@ -35,8 +35,53 @@ async function checkAuth() {
     }
 }
 
+// Setup event listeners after auth check
+async function setupEventListeners() {
+    const usernameDisplay = document.getElementById('username-display');
+    const logoutBtn = document.getElementById('dropdown-logout-btn');
+    const adminLink = document.getElementById('admin-dropdown-link');
+    
+    if (usernameDisplay) {
+        usernameDisplay.addEventListener('click', toggleUserDropdown);
+    }
+    
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
+    
+    // Check if user is admin to show admin link
+    try {
+        const response = await fetch('/api/check-auth');
+        const data = await response.json();
+        if (data.is_admin && adminLink) {
+            adminLink.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Error checking admin status:', error);
+    }
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (event) => {
+        const dropdown = document.getElementById('user-dropdown-menu');
+        const usernameBtn = document.getElementById('username-display');
+        if (dropdown && usernameBtn && !usernameBtn.contains(event.target) && !dropdown.contains(event.target)) {
+            dropdown.classList.remove('show');
+        }
+    });
+}
+
+// Toggle user dropdown menu
+function toggleUserDropdown(event) {
+    event.stopPropagation();
+    const dropdown = document.getElementById('user-dropdown-menu');
+    if (dropdown) {
+        dropdown.classList.toggle('show');
+    }
+}
+
 // Logout handler
-document.getElementById('logout-btn').addEventListener('click', async () => {
+async function handleLogout(event) {
+    event.preventDefault();
     if (!confirm('Are you sure you want to logout?')) {
         return;
     }
@@ -48,7 +93,7 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
         console.error('Logout error:', error);
         alert('Error logging out. Please try again.');
     }
-});
+}
 
 // Load members
 async function loadMembers() {
@@ -353,6 +398,7 @@ function escapeHtml(text) {
 document.addEventListener('DOMContentLoaded', async () => {
     const isAuthenticated = await checkAuth();
     if (isAuthenticated) {
+        await setupEventListeners();
         await loadMembers();
         await loadRecommendations();
         setupMemberSearch();
