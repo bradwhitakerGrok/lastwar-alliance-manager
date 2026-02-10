@@ -4,9 +4,33 @@
     box-sizing: border-box;
 }
 
+:root {
+    color-scheme: light;
+    --bg-gradient-start: #1e3c72;
+    --bg-gradient-end: #2a5298;
+    --container-bg: white;
+    --text-primary: #333;
+    --text-secondary: #666;
+    --card-bg: #f8f9fa;
+    --border-color: #e9ecef;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        color-scheme: dark;
+        --bg-gradient-start: #0a1628;
+        --bg-gradient-end: #1a2f4f;
+        --container-bg: #1a1f2e;
+        --text-primary: #e9ecef;
+        --text-secondary: rgba(255, 255, 255, 0.7);
+        --card-bg: rgba(255, 255, 255, 0.05);
+        --border-color: rgba(255, 255, 255, 0.1);
+    }
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
     min-height: 100vh;
     padding: 20px;
     -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
@@ -56,10 +80,17 @@ button,
 .container {
     max-width: 1000px;
     margin: 0 auto;
-    background: white;
+    background: var(--container-bg);
     border-radius: 15px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
     overflow: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+    .container {
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
 }
 
 header {
@@ -127,7 +158,7 @@ header h2 {
     position: absolute;
     top: calc(100% + 10px);
     right: 0;
-    background: white;
+    background: var(--container-bg);
     border-radius: 12px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
     min-width: 200px;
@@ -170,7 +201,7 @@ header h2 {
 
 .dropdown-divider {
     height: 1px;
-    background: #e9ecef;
+    background: var(--border-color);
     margin: 5px 0;
 }
 
@@ -4322,14 +4353,20 @@ button {
     display: flex;
     gap: 10px;
     margin-bottom: 25px;
-    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 2px solid var(--border-color);
     flex-wrap: wrap;
+}
+
+@media (prefers-color-scheme: dark) {
+    .tabs {
+        border-bottom-color: rgba(255, 255, 255, 0.1);
+    }
 }
 
 .tab-button {
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     padding: 15px 25px;
     cursor: pointer;
     font-size: 16px;
@@ -4340,14 +4377,20 @@ button {
 }
 
 .tab-button:hover {
-    color: white;
-    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    background: var(--card-bg);
 }
 
 .tab-button.active {
-    color: white;
+    color: #667eea;
     border-bottom-color: #667eea;
     background: rgba(102, 126, 234, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+    .tab-button.active {
+        color: #a0aef0;
+    }
 }
 
 .tab-content {
@@ -4366,17 +4409,28 @@ button {
 }
 
 .user-card {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--card-bg);
     border-radius: 12px;
     padding: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border-color);
     transition: all 0.3s ease;
 }
 
 .user-card:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(102, 126, 234, 0.3);
+    background: var(--card-bg);
+    border-color: rgba(102, 126, 234, 0.5);
     transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+@media (prefers-color-scheme: dark) {
+    .user-card {
+        background: rgba(255, 255, 255, 0.05);
+    }
+    
+    .user-card:hover {
+        background: rgba(255, 255, 255, 0.08);
+    }
 }
 
 .user-header {
@@ -4389,13 +4443,19 @@ button {
 }
 
 .user-info h3 {
-    color: white;
+    color: var(--text-primary);
     font-size: 1.3em;
     margin-bottom: 8px;
     display: flex;
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+}
+
+@media (prefers-color-scheme: dark) {
+    .user-info h3 {
+        color: white;
+    }
 }
 
 .admin-badge {
@@ -4417,9 +4477,10 @@ button {
 }
 
 .no-member {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--text-secondary);
     font-size: 0.9em;
     font-style: italic;
+    opacity: 0.6;
 }
 
 .user-actions {
@@ -4440,31 +4501,59 @@ button {
     justify-content: space-between;
     align-items: center;
     padding: 10px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--card-bg);
     border-radius: 8px;
+    border: 1px solid var(--border-color);
 }
 
 .stat-label {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     font-size: 0.9em;
 }
 
+@media (prefers-color-scheme: dark) {
+    .stat {
+        background: rgba(0, 0, 0, 0.2);
+        border-color: rgba(255, 255, 255, 0.05);
+    }
+    
+    .stat-label {
+        color: rgba(255, 255, 255, 0.7);
+    }
+}
+
 .stat-value {
-    color: white;
+    color: var(--text-primary);
     font-weight: bold;
+}
+
+@media (prefers-color-scheme: dark) {
+    .stat-value {
+        color: white;
+    }
 }
 
 /* Recent Logins */
 .recent-logins {
     margin-top: 15px;
     padding-top: 15px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--border-color);
 }
 
 .recent-logins strong {
-    color: white;
+    color: var(--text-primary);
     display: block;
     margin-bottom: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .recent-logins {
+        border-top-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .recent-logins strong {
+        color: white;
+    }
 }
 
 .login-entry {
@@ -4472,55 +4561,103 @@ button {
     grid-template-columns: 1fr 120px 150px;
     gap: 10px;
     padding: 8px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     margin-bottom: 6px;
     font-size: 0.85em;
 }
 
 .login-location {
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-primary);
 }
 
 .login-ip {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     font-family: 'Courier New', monospace;
 }
 
 .login-time {
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
     font-size: 0.9em;
+    opacity: 0.8;
+}
+
+@media (prefers-color-scheme: dark) {
+    .login-entry {
+        background: rgba(0, 0, 0, 0.2);
+        border-color: rgba(255, 255, 255, 0.05);
+    }
+    
+    .login-location {
+        color: rgba(255, 255, 255, 0.9);
+    }
+    
+    .login-ip {
+        color: rgba(255, 255, 255, 0.7);
+    }
+    
+    .login-time {
+        color: rgba(255, 255, 255, 0.6);
+    }
 }
 
 /* Login History Table */
 .login-table {
     width: 100%;
     border-collapse: collapse;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--card-bg);
     border-radius: 12px;
     overflow: hidden;
+    border: 1px solid var(--border-color);
 }
 
 .login-table thead {
-    background: rgba(0, 0, 0, 0.3);
+    background: var(--card-bg);
+    border-bottom: 2px solid var(--border-color);
 }
 
 .login-table th {
-    color: white;
+    color: var(--text-primary);
     font-weight: 600;
     padding: 15px;
     text-align: left;
-    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 2px solid var(--border-color);
 }
 
 .login-table td {
     padding: 12px 15px;
-    color: rgba(255, 255, 255, 0.9);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .login-row:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--card-bg);
+}
+
+@media (prefers-color-scheme: dark) {
+    .login-table {
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .login-table thead {
+        background: rgba(0, 0, 0, 0.3);
+    }
+    
+    .login-table th {
+        color: white;
+        border-bottom-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .login-table td {
+        color: rgba(255, 255, 255, 0.9);
+        border-bottom-color: rgba(255, 255, 255, 0.05);
+    }
+    
+    .login-row:hover {
+        background: rgba(255, 255, 255, 0.05);
+    }
 }
 
 .login-row.failed {
@@ -4617,14 +4754,27 @@ button {
     width: 100%;
     padding: 12px 20px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    background: rgba(0, 0, 0, 0.2);
-    color: white;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-primary);
     font-size: 16px;
 }
 
 .search-box input::placeholder {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+@media (prefers-color-scheme: dark) {
+    .search-box input {
+        border-color: rgba(255, 255, 255, 0.2);
+        background: rgba(0, 0, 0, 0.2);
+        color: white;
+    }
+    
+    .search-box input::placeholder {
+        color: rgba(255, 255, 255, 0.5);
+    }
 }
 
 /* Modal Overrides for Admin */
@@ -4670,15 +4820,55 @@ button {
 .empty-state {
     text-align: center;
     padding: 60px 20px;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
     font-size: 1.1em;
+    opacity: 0.8;
 }
 
 .loading {
     text-align: center;
     padding: 40px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
     font-size: 1.1em;
+}
+
+@media (prefers-color-scheme: dark) {
+    .empty-state {
+        color: rgba(255, 255, 255, 0.6);
+    }
+    
+    .loading {
+        color: rgba(255, 255, 255, 0.7);
+    }
+}
+
+/* Error and Info Messages */
+.error-message {
+    padding: 20px;
+    margin: 20px 0;
+    background: rgba(229, 62, 62, 0.1);
+    border-left: 4px solid #e53e3e;
+    border-radius: 8px;
+    color: var(--text-primary);
+}
+
+.info-message {
+    padding: 20px;
+    margin: 20px 0;
+    background: rgba(66, 153, 225, 0.1);
+    border-left: 4px solid #4299e1;
+    border-radius: 8px;
+    color: var(--text-primary);
+}
+
+@media (prefers-color-scheme: dark) {
+    .error-message {
+        color: #fc8181;
+    }
+    
+    .info-message {
+        color: #90cdf4;
+    }
 }
 
 /* Responsive Admin Styles */
@@ -4738,5 +4928,48 @@ button {
     .user-actions button {
         font-size: 0.75em;
         padding: 6px 8px;
+    }
+}
+
+/* Admin Panel Cards */
+.card {
+    background: var(--container-bg);
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 25px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid var(--border-color);
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.card-header h2 {
+    color: var(--text-primary);
+    font-size: 1.5em;
+    margin: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+    .card {
+        background: rgba(255, 255, 255, 0.02);
+        border-color: rgba(255, 255, 255, 0.1);
+        box-shadow: none;
+    }
+    
+    .card-header {
+        border-bottom-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .card-header h2 {
+        color: white;
     }
 }
