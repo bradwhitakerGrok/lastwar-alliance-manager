@@ -3639,16 +3639,9 @@ func preprocessImageForOCR(imageData []byte) ([]byte, error) {
 	// Enhance contrast
 	enhancedImg := enhanceContrast(grayImg)
 
-	// Apply adaptive thresholding for better text extraction
-	// Use smaller block size for dense text
-	blockSize := 25
-	if attrs.RowHeight < 50 {
-		blockSize = 15
-	}
-	thresholdedImg := applyAdaptiveThreshold(enhancedImg, blockSize)
-
-	// Invert if needed (OCR works better with black text on white)
-	processedImg := invertImage(thresholdedImg)
+	// For OCR, just use the enhanced grayscale image
+	// Thresholding can be too aggressive for complex game UI backgrounds
+	processedImg := enhancedImg
 
 	// Encode back to bytes
 	var buf bytes.Buffer
@@ -3656,7 +3649,7 @@ func preprocessImageForOCR(imageData []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to encode processed image: %v", err)
 	}
 
-	log.Printf("Image preprocessed: %dx%d -> %dx%d",
+	log.Printf("Image preprocessed: %dx%d -> %dx%d, using enhanced grayscale",
 		img.Bounds().Dx(), img.Bounds().Dy(),
 		processedImg.Bounds().Dx(), processedImg.Bounds().Dy())
 
@@ -3684,8 +3677,9 @@ func extractPowerDataFromImage(imageData []byte) ([]struct {
 	}
 
 	// Configure Tesseract for better text recognition
-	client.SetPageSegMode(gosseract.PSM_AUTO)
-	client.SetWhitelist("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,. \n\t")
+	client.SetPageSegMode(gosseract.PSM_SINGLE_BLOCK)
+	// Don't use whitelist - let Tesseract recognize all characters for better accuracy
+	// client.SetWhitelist("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,. \n\t")
 
 	text, err := client.Text()
 	if err != nil {
