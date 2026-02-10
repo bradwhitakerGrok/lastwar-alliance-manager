@@ -113,7 +113,7 @@ header h2 {
     opacity: 0.95;
 }
 
-.user-info {
+header .user-info {
     position: absolute;
     top: 20px;
     right: 30px;
@@ -656,7 +656,7 @@ button {
     }
 
     /* User info - move below header */
-    .user-info {
+    header .user-info {
         position: static;
         width: 100%;
         justify-content: center;
@@ -4440,6 +4440,11 @@ button {
     margin-bottom: 15px;
     flex-wrap: wrap;
     gap: 15px;
+}
+
+.user-card .user-info {
+    position: static;
+    flex: 1;
 }
 
 .user-info h3 {
