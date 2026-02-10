@@ -4,6 +4,7 @@ let editingMemberId = null;
 let currentUsername = '';
 let canManageRanks = false;
 let isR5OrAdmin = false;
+let isAdmin = false;
 let allMembers = []; // Store all members for search filtering
 
 // Check authentication on page load
@@ -20,21 +21,58 @@ async function checkAuth() {
         currentUsername = data.username;
         canManageRanks = data.can_manage_ranks || false;
         isR5OrAdmin = data.is_r5_or_admin || false;
+        isAdmin = data.is_admin || false;
         
         let displayText = `👤 ${currentUsername}`;
         if (data.rank) {
             displayText += ` (${data.rank})`;
         }
-        document.getElementById('username-display').textContent = displayText;
+        
+        const usernameDisplay = document.getElementById('username-display');
+        if (usernameDisplay) {
+            usernameDisplay.textContent = displayText;
+        }
         
         // Show/hide management controls based on permissions
         updateUIPermissions();
+        
+        // Add admin link to navigation if user is admin
+        addAdminNavLink();
         
         return true;
     } catch (error) {
         console.error('Auth check error:', error);
         window.location.href = '/login.html';
         return false;
+    }
+}
+
+// Add admin link to navigation for admin users
+function addAdminNavLink() {
+    if (!isAdmin) return;
+    
+    const navMenu = document.querySelector('.nav-menu');
+    if (!navMenu) return;
+    
+    // Check if admin link already exists
+    const existingAdminLink = navMenu.querySelector('a[href="/admin.html"]');
+    if (existingAdminLink) return;
+    
+    // Create admin link
+    const adminLink = document.createElement('a');
+    adminLink.href = '/admin.html';
+    adminLink.className = 'nav-link admin-link';
+    adminLink.innerHTML = '🔐 Admin';
+    adminLink.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+    adminLink.style.color = 'white';
+    adminLink.style.fontWeight = 'bold';
+    
+    // Insert before the last link (Profile)
+    const lastLink = navMenu.querySelector('a[href="/profile.html"]');
+    if (lastLink) {
+        navMenu.insertBefore(adminLink, lastLink);
+    } else {
+        navMenu.appendChild(adminLink);
     }
 }
 

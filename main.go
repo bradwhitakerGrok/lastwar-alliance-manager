@@ -119,6 +119,55 @@ type PowerHistory struct {
 	RecordedAt string `json:"recorded_at"`
 }
 
+type LoginSession struct {
+	ID        int     `json:"id"`
+	UserID    int     `json:"user_id"`
+	Username  string  `json:"username"`
+	IPAddress *string `json:"ip_address,omitempty"`
+	UserAgent *string `json:"user_agent,omitempty"`
+	Country   *string `json:"country,omitempty"`
+	City      *string `json:"city,omitempty"`
+	ISP       *string `json:"isp,omitempty"`
+	LoginTime string  `json:"login_time"`
+	Success   bool    `json:"success"`
+}
+
+type IPGeolocation struct {
+	Status      string  `json:"status"`
+	Country     string  `json:"country"`
+	CountryCode string  `json:"countryCode"`
+	Region      string  `json:"region"`
+	RegionName  string  `json:"regionName"`
+	City        string  `json:"city"`
+	Zip         string  `json:"zip"`
+	Lat         float64 `json:"lat"`
+	Lon         float64 `json:"lon"`
+	Timezone    string  `json:"timezone"`
+	ISP         string  `json:"isp"`
+	Org         string  `json:"org"`
+	AS          string  `json:"as"`
+	Query       string  `json:"query"`
+}
+
+type AdminUserRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password,omitempty"`
+	MemberID *int   `json:"member_id,omitempty"`
+	IsAdmin  bool   `json:"is_admin"`
+}
+
+type AdminUserResponse struct {
+	ID           int            `json:"id"`
+	Username     string         `json:"username"`
+	MemberID     *int           `json:"member_id,omitempty"`
+	MemberName   *string        `json:"member_name,omitempty"`
+	IsAdmin      bool           `json:"is_admin"`
+	CreatedAt    string         `json:"created_at,omitempty"`
+	LastLogin    *string        `json:"last_login,omitempty"`
+	LoginCount   int            `json:"login_count"`
+	RecentLogins []LoginSession `json:"recent_logins,omitempty"`
+}
+
 type Settings struct {
 	ID                           int    `json:"id"`
 	AwardFirstPoints             int    `json:"award_first_points"`
@@ -856,6 +905,32 @@ func initDB() error {
 		return err
 	}
 
+	// Create login_sessions table for tracking login history
+	createLoginSessionsSQL := `CREATE TABLE IF NOT EXISTS login_sessions (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		username TEXT NOT NULL,
+		ip_address TEXT,
+		user_agent TEXT,
+		country TEXT,
+		city TEXT,
+		isp TEXT,
+		login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		success BOOLEAN DEFAULT 1,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+	);`
+
+	_, err = db.Exec(createLoginSessionsSQL)
+	if err != nil {
+		return err
+	}
+
+	// Create index for faster login history queries
+	_, err = db.Exec("CREATE INDEX IF NOT EXISTS idx_login_sessions_user ON login_sessions(user_id, login_time DESC)")
+	if err != nil {
+		return err
+	}
+
 	// Initialize default settings if not exist
 	var settingsCount int
 	err = db.QueryRow("SELECT COUNT(*) FROM settings").Scan(&settingsCount)
@@ -1074,6 +1149,20 @@ func adminR5Middleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// Admin-only middleware
+func adminMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		session, _ := store.Get(r, "session")
+
+		if isAdmin, ok := session.Values["is_admin"].(bool); !ok || !isAdmin {
+			http.Error(w, "Forbidden: Admin access required", http.StatusForbidden)
+			return
+		}
+
+		next(w, r)
+	}
+}
+
 // Login handler
 func login(w http.ResponseWriter, r *http.Request) {
 	var creds Credentials
@@ -1087,6 +1176,8 @@ func login(w http.ResponseWriter, r *http.Request) {
 	var isAdmin sql.NullBool
 	err := db.QueryRow("SELECT id, username, password, member_id, is_admin FROM users WHERE username = ?", creds.Username).Scan(&user.ID, &user.Username, &user.Password, &memberID, &isAdmin)
 	if err != nil {
+		// Track failed login attempt
+		trackLogin(0, creds.Username, r, false)
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}
@@ -1100,9 +1191,14 @@ func login(w http.ResponseWriter, r *http.Request) {
 	// Compare password
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(creds.Password))
 	if err != nil {
+		// Track failed login attempt
+		trackLogin(user.ID, user.Username, r, false)
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}
+
+	// Track successful login
+	trackLogin(user.ID, user.Username, r, true)
 
 	// Create session
 	session, _ := store.Get(r, "session")
@@ -1199,6 +1295,84 @@ func generateRandomPassword(length int) (string, error) {
 		password[i] = charset[num.Int64()]
 	}
 	return string(password), nil
+}
+
+// Get client IP with X-Forwarded-For and X-Real-IP support
+func getClientIP(r *http.Request) string {
+	// Check X-Forwarded-For header (proxy/load balancer)
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		ips := strings.Split(xff, ",")
+		return strings.TrimSpace(ips[0])
+	}
+
+	// Check X-Real-IP header (nginx)
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return xri
+	}
+
+	// Fall back to RemoteAddr
+	ip := r.RemoteAddr
+	if colonIndex := strings.LastIndex(ip, ":"); colonIndex != -1 {
+		ip = ip[:colonIndex]
+	}
+	return ip
+}
+
+// Get IP geolocation information using ip-api.com (free, no key required)
+func getIPGeolocation(ip string) (*IPGeolocation, error) {
+	// Skip localhost/private IPs
+	if ip == "127.0.0.1" || ip == "::1" || strings.HasPrefix(ip, "192.168.") || strings.HasPrefix(ip, "10.") {
+		return &IPGeolocation{
+			Status:  "success",
+			Country: "Local Network",
+			City:    "Localhost",
+			ISP:     "Private Network",
+			Query:   ip,
+		}, nil
+	}
+
+	url := fmt.Sprintf("http://ip-api.com/json/%s?fields=status,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,query", ip)
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var geo IPGeolocation
+	if err := json.NewDecoder(resp.Body).Decode(&geo); err != nil {
+		return nil, err
+	}
+
+	if geo.Status != "success" {
+		return nil, fmt.Errorf("geolocation lookup failed")
+	}
+
+	return &geo, nil
+}
+
+// Track login attempt in database
+func trackLogin(userID int, username string, r *http.Request, success bool) {
+	ip := getClientIP(r)
+	userAgent := r.Header.Get("User-Agent")
+
+	var country, city, isp *string
+
+	// Get geolocation data (non-blocking, log errors but don't fail)
+	if geo, err := getIPGeolocation(ip); err == nil {
+		country = &geo.Country
+		city = &geo.City
+		isp = &geo.ISP
+	}
+
+	_, err := db.Exec(`INSERT INTO login_sessions (user_id, username, ip_address, user_agent, country, city, isp, success) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		userID, username, ip, userAgent, country, city, isp, success)
+
+	if err != nil {
+		log.Printf("Failed to track login: %v", err)
+	}
 }
 
 // Create user for member
@@ -1309,6 +1483,347 @@ func checkAuth(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]bool{"authenticated": false})
 	}
+}
+
+// Admin: Get all users with login information
+func getAdminUsers(w http.ResponseWriter, r *http.Request) {
+	query := `
+		SELECT u.id, u.username, u.member_id, u.is_admin, 
+			   m.name as member_name,
+			   (SELECT login_time FROM login_sessions WHERE user_id = u.id AND success = 1 ORDER BY login_time DESC LIMIT 1) as last_login,
+			   (SELECT COUNT(*) FROM login_sessions WHERE user_id = u.id AND success = 1) as login_count
+		FROM users u
+		LEFT JOIN members m ON u.member_id = m.id
+		ORDER BY u.is_admin DESC, u.username ASC
+	`
+
+	rows, err := db.Query(query)
+	if err != nil {
+		http.Error(w, "Failed to fetch users", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	users := []AdminUserResponse{}
+	for rows.Next() {
+		var user AdminUserResponse
+		var memberID sql.NullInt64
+		var memberName sql.NullString
+		var lastLogin sql.NullString
+
+		err := rows.Scan(&user.ID, &user.Username, &memberID, &user.IsAdmin,
+			&memberName, &lastLogin, &user.LoginCount)
+		if err != nil {
+			continue
+		}
+
+		if memberID.Valid {
+			mid := int(memberID.Int64)
+			user.MemberID = &mid
+		}
+		if memberName.Valid {
+			user.MemberName = &memberName.String
+		}
+		if lastLogin.Valid {
+			user.LastLogin = &lastLogin.String
+		}
+
+		// Get recent logins (last 5)
+		loginRows, err := db.Query(`
+			SELECT id, user_id, username, ip_address, user_agent, country, city, isp, login_time, success
+			FROM login_sessions
+			WHERE user_id = ? AND success = 1
+			ORDER BY login_time DESC
+			LIMIT 5
+		`, user.ID)
+
+		if err == nil {
+			recentLogins := []LoginSession{}
+			for loginRows.Next() {
+				var login LoginSession
+				var ipAddr, userAgent, country, city, isp sql.NullString
+
+				loginRows.Scan(&login.ID, &login.UserID, &login.Username,
+					&ipAddr, &userAgent, &country, &city, &isp,
+					&login.LoginTime, &login.Success)
+
+				if ipAddr.Valid {
+					login.IPAddress = &ipAddr.String
+				}
+				if userAgent.Valid {
+					login.UserAgent = &userAgent.String
+				}
+				if country.Valid {
+					login.Country = &country.String
+				}
+				if city.Valid {
+					login.City = &city.String
+				}
+				if isp.Valid {
+					login.ISP = &isp.String
+				}
+
+				recentLogins = append(recentLogins, login)
+			}
+			loginRows.Close()
+			user.RecentLogins = recentLogins
+		}
+
+		users = append(users, user)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(users)
+}
+
+// Admin: Create new user
+func createAdminUser(w http.ResponseWriter, r *http.Request) {
+	var req AdminUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Username == "" || req.Password == "" {
+		http.Error(w, "Username and password are required", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Password) < 6 {
+		http.Error(w, "Password must be at least 6 characters", http.StatusBadRequest)
+		return
+	}
+
+	// Check if username already exists
+	var existingID int
+	err := db.QueryRow("SELECT id FROM users WHERE username = ?", req.Username).Scan(&existingID)
+	if err == nil {
+		http.Error(w, "Username already exists", http.StatusConflict)
+		return
+	}
+
+	// Hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "Failed to hash password", http.StatusInternalServerError)
+		return
+	}
+
+	// Insert user
+	result, err := db.Exec("INSERT INTO users (username, password, member_id, is_admin) VALUES (?, ?, ?, ?)",
+		req.Username, string(hashedPassword), req.MemberID, req.IsAdmin)
+	if err != nil {
+		http.Error(w, "Failed to create user: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	id, _ := result.LastInsertId()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "User created successfully",
+		"id":      id,
+	})
+}
+
+// Admin: Update user
+func updateAdminUser(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	userID, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	var req AdminUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Check if user exists
+	var existingUsername string
+	err = db.QueryRow("SELECT username FROM users WHERE id = ?", userID).Scan(&existingUsername)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	// Check if new username already exists (if username is being changed)
+	if req.Username != "" && req.Username != existingUsername {
+		var otherID int
+		err = db.QueryRow("SELECT id FROM users WHERE username = ? AND id != ?", req.Username, userID).Scan(&otherID)
+		if err == nil {
+			http.Error(w, "Username already exists", http.StatusConflict)
+			return
+		}
+	}
+
+	// Build update query
+	if req.Username != "" {
+		_, err = db.Exec("UPDATE users SET username = ?, member_id = ?, is_admin = ? WHERE id = ?",
+			req.Username, req.MemberID, req.IsAdmin, userID)
+	} else {
+		_, err = db.Exec("UPDATE users SET member_id = ?, is_admin = ? WHERE id = ?",
+			req.MemberID, req.IsAdmin, userID)
+	}
+
+	if err != nil {
+		http.Error(w, "Failed to update user: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "User updated successfully"})
+}
+
+// Admin: Delete user
+func deleteAdminUser(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	userID, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	// Check if user exists
+	var username string
+	err = db.QueryRow("SELECT username FROM users WHERE id = ?", userID).Scan(&username)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	// Prevent deleting the last admin
+	var adminCount int
+	err = db.QueryRow("SELECT COUNT(*) FROM users WHERE is_admin = 1").Scan(&adminCount)
+	if err == nil && adminCount <= 1 {
+		var isAdmin bool
+		db.QueryRow("SELECT is_admin FROM users WHERE id = ?", userID).Scan(&isAdmin)
+		if isAdmin {
+			http.Error(w, "Cannot delete the last admin user", http.StatusForbidden)
+			return
+		}
+	}
+
+	// Delete user
+	_, err = db.Exec("DELETE FROM users WHERE id = ?", userID)
+	if err != nil {
+		http.Error(w, "Failed to delete user: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "User deleted successfully"})
+}
+
+// Admin: Reset user password
+func resetUserPassword(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	userID, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	// Check if user exists
+	var username string
+	err = db.QueryRow("SELECT username FROM users WHERE id = ?", userID).Scan(&username)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	// Generate random password
+	randomPassword, err := generateRandomPassword(10)
+	if err != nil {
+		http.Error(w, "Failed to generate password", http.StatusInternalServerError)
+		return
+	}
+
+	// Hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(randomPassword), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "Failed to hash password", http.StatusInternalServerError)
+		return
+	}
+
+	// Update password
+	_, err = db.Exec("UPDATE users SET password = ? WHERE id = ?", string(hashedPassword), userID)
+	if err != nil {
+		http.Error(w, "Failed to reset password: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":  "Password reset successfully",
+		"username": username,
+		"password": randomPassword,
+	})
+}
+
+// Admin: Get login history
+func getLoginHistory(w http.ResponseWriter, r *http.Request) {
+	// Get optional filters from query params
+	userIDParam := r.URL.Query().Get("user_id")
+	limit := r.URL.Query().Get("limit")
+	if limit == "" {
+		limit = "100"
+	}
+
+	query := `
+		SELECT ls.id, ls.user_id, ls.username, ls.ip_address, ls.user_agent, 
+		       ls.country, ls.city, ls.isp, ls.login_time, ls.success
+		FROM login_sessions ls
+	`
+
+	if userIDParam != "" {
+		query += " WHERE ls.user_id = " + userIDParam
+	}
+
+	query += " ORDER BY ls.login_time DESC LIMIT " + limit
+
+	rows, err := db.Query(query)
+	if err != nil {
+		http.Error(w, "Failed to fetch login history", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	history := []LoginSession{}
+	for rows.Next() {
+		var login LoginSession
+		var ipAddr, userAgent, country, city, isp sql.NullString
+
+		err := rows.Scan(&login.ID, &login.UserID, &login.Username,
+			&ipAddr, &userAgent, &country, &city, &isp,
+			&login.LoginTime, &login.Success)
+		if err != nil {
+			continue
+		}
+
+		if ipAddr.Valid {
+			login.IPAddress = &ipAddr.String
+		}
+		if userAgent.Valid {
+			login.UserAgent = &userAgent.String
+		}
+		if country.Valid {
+			login.Country = &country.String
+		}
+		if city.Valid {
+			login.City = &city.String
+		}
+		if isp.Valid {
+			login.ISP = &isp.String
+		}
+
+		history = append(history, login)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(history)
 }
 
 // Get all members
@@ -4050,6 +4565,14 @@ func main() {
 	router.HandleFunc("/api/check-auth", checkAuth).Methods("GET")
 	router.HandleFunc("/api/change-password", authMiddleware(changePassword)).Methods("POST")
 	router.HandleFunc("/api/members/{id}/create-user", authMiddleware(adminR5Middleware(createUserForMember))).Methods("POST")
+
+	// Admin routes (admin only)
+	router.HandleFunc("/api/admin/users", authMiddleware(adminMiddleware(getAdminUsers))).Methods("GET")
+	router.HandleFunc("/api/admin/users", authMiddleware(adminMiddleware(createAdminUser))).Methods("POST")
+	router.HandleFunc("/api/admin/users/{id}", authMiddleware(adminMiddleware(updateAdminUser))).Methods("PUT")
+	router.HandleFunc("/api/admin/users/{id}", authMiddleware(adminMiddleware(deleteAdminUser))).Methods("DELETE")
+	router.HandleFunc("/api/admin/users/{id}/reset-password", authMiddleware(adminMiddleware(resetUserPassword))).Methods("POST")
+	router.HandleFunc("/api/admin/login-history", authMiddleware(adminMiddleware(getLoginHistory))).Methods("GET")
 
 	// API routes (protected)
 	router.HandleFunc("/api/members", authMiddleware(getMembers)).Methods("GET")
