@@ -3617,6 +3617,26 @@ func invertImage(img *image.Gray) *image.Gray {
 	return inverted
 }
 
+// Scale image up for better OCR
+func scaleImage(img image.Image, factor int) image.Image {
+	bounds := img.Bounds()
+	newWidth := bounds.Dx() * factor
+	newHeight := bounds.Dy() * factor
+
+	scaled := image.NewRGBA(image.Rect(0, 0, newWidth, newHeight))
+
+	// Simple nearest-neighbor scaling
+	for y := 0; y < newHeight; y++ {
+		for x := 0; x < newWidth; x++ {
+			origX := x / factor
+			origY := y / factor
+			scaled.Set(x, y, img.At(origX, origY))
+		}
+	}
+
+	return scaled
+}
+
 // Preprocess image for better OCR
 func preprocessImageForOCR(imageData []byte) ([]byte, error) {
 	// Decode image
@@ -3633,15 +3653,14 @@ func preprocessImageForOCR(imageData []byte) ([]byte, error) {
 	// Crop to data region only (remove UI elements)
 	croppedImg := cropToDataRegion(img, attrs.DataRegion)
 
+	// Scale up 2x for better OCR (small text is hard to read)
+	scaledImg := scaleImage(croppedImg, 2)
+
 	// Convert to grayscale
-	grayImg := convertToGrayscale(croppedImg)
+	grayImg := convertToGrayscale(scaledImg)
 
-	// Enhance contrast
-	enhancedImg := enhanceContrast(grayImg)
-
-	// For OCR, just use the enhanced grayscale image
-	// Thresholding can be too aggressive for complex game UI backgrounds
-	processedImg := enhancedImg
+	// For small images, skip contrast enhancement (can make things worse)
+	processedImg := grayImg
 
 	// Encode back to bytes
 	var buf bytes.Buffer
@@ -3649,7 +3668,7 @@ func preprocessImageForOCR(imageData []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to encode processed image: %v", err)
 	}
 
-	log.Printf("Image preprocessed: %dx%d -> %dx%d, using enhanced grayscale",
+	log.Printf("Image preprocessed: %dx%d -> %dx%d (2x scaled grayscale)",
 		img.Bounds().Dx(), img.Bounds().Dy(),
 		processedImg.Bounds().Dx(), processedImg.Bounds().Dy())
 
@@ -3676,14 +3695,27 @@ func extractPowerDataFromImage(imageData []byte) ([]struct {
 		return nil, fmt.Errorf("failed to load image: %v", err)
 	}
 
-	// Configure Tesseract for better text recognition
-	client.SetPageSegMode(gosseract.PSM_SINGLE_BLOCK)
-	// Don't use whitelist - let Tesseract recognize all characters for better accuracy
-	// client.SetWhitelist("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789,. \n\t")
+	// Try different PSM modes for better recognition
+	var text string
+	psmModes := []gosseract.PageSegMode{
+		gosseract.PSM_AUTO,
+		gosseract.PSM_SINGLE_BLOCK,
+		gosseract.PSM_SPARSE_TEXT,
+	}
 
-	text, err := client.Text()
-	if err != nil {
-		return nil, fmt.Errorf("OCR failed: %v", err)
+	for i, mode := range psmModes {
+		client.SetPageSegMode(mode)
+		extractedText, err := client.Text()
+		if err == nil && len(strings.TrimSpace(extractedText)) > 0 {
+			text = extractedText
+			log.Printf("OCR successful with PSM mode %d (attempt %d)", mode, i+1)
+			break
+		}
+		log.Printf("OCR attempt %d with PSM mode %d failed or empty", i+1, mode)
+	}
+
+	if len(strings.TrimSpace(text)) == 0 {
+		return nil, fmt.Errorf("OCR failed: no text extracted after trying multiple modes")
 	}
 
 	// Log the extracted text for debugging
