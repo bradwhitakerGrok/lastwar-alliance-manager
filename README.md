@@ -36,6 +36,19 @@ A comprehensive Go web application for managing your alliance in the online game
 - **Placeholder System**: Dynamic message generation with member names, ranks, dates, and times
 - **Copy-to-Clipboard**: Easy copying of generated messages for in-game chat
 
+### Power Tracking with Image Recognition
+- **Screenshot OCR**: Upload power rankings screenshots for automatic data extraction
+- **Intelligent Image Preprocessing**: AI-powered region detection and enhancement
+  - Automatically detects and crops data regions (removes headers, tabs, buttons)
+  - Enhances contrast and applies adaptive thresholding for better text recognition
+  - Filters out UI elements to focus only on player data
+- **Smart Parsing**: Advanced pattern matching for names and power values
+- **Fuzzy Member Matching**: Automatically matches OCR text to database members
+- **Manual Entry**: Alternative text-based input for manual data entry
+- **Power History Tracking**: Track member power progression over time
+
+See [IMAGE_RECOGNITION.md](IMAGE_RECOGNITION.md) for detailed technical documentation on the image analysis system.
+
 ### Additional Features
 - **Profile Management**: Users can change passwords and view account information
 - **Settings Page**: R5/Admin-only configuration for ranking system and message templates
@@ -47,10 +60,16 @@ A comprehensive Go web application for managing your alliance in the online game
 
 ### Development
 - **Go 1.21 or higher** - Download from https://golang.org/dl/
-- **GCC compiler** (for SQLite CGO compilation):
+- **GCC compiler** (for CGO compilation - required for Tesseract OCR):
   - Windows: Install MinGW-w64 or TDM-GCC
   - Linux: `sudo apt-get install build-essential`
   - macOS: Install Xcode Command Line Tools
+- **Tesseract OCR** (for image recognition features):
+  - Windows: Download from https://github.com/UB-Mannheim/tesseract/wiki
+  - Linux: `sudo apt-get install tesseract-ocr tesseract-ocr-all libtesseract-dev libleptonica-dev`
+  - macOS: `brew install tesseract`
+
+**Note**: CGO must be enabled for OCR features (`go env CGO_ENABLED` should return `1`). On Windows without MinGW/TDM-GCC, the application can compile but OCR features won't work. Deploy to Linux for full functionality.
 
 ### Production (Debian/Ubuntu Server)
 See [DEPLOYMENT.md](DEPLOYMENT.md) for comprehensive production deployment guide with:

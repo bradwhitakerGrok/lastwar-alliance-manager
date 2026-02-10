@@ -1,12 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"database/sql"
 	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
 	"io"
 	"log"
 	"math"
@@ -3372,15 +3377,308 @@ func addPowerRecord(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Extract power data from image using OCR
+// ImageRegion represents a detected region in the screenshot
+type ImageRegion struct {
+	Name   string
+	Top    int
+	Bottom int
+	Left   int
+	Right  int
+}
+
+// ScreenshotAttributes contains analyzed attributes from the screenshot
+type ScreenshotAttributes struct {
+	Width          int
+	Height         int
+	TitleBarRegion *ImageRegion
+	TabsRegion     *ImageRegion
+	HeaderRegion   *ImageRegion
+	DataRegion     *ImageRegion
+	ButtonRegion   *ImageRegion
+	RowHeight      int
+	EstimatedRows  int
+}
+
+// Analyze screenshot to detect distinct regions and attributes
+func analyzeScreenshot(img image.Image) *ScreenshotAttributes {
+	bounds := img.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+
+	attrs := &ScreenshotAttributes{
+		Width:  width,
+		Height: height,
+	}
+
+	// Detect dark title bar at top (typically 5-10% of height)
+	// Title bars are usually dark colored
+	titleBarHeight := height / 15 // ~6-7%
+	if titleBarHeight < 30 {
+		titleBarHeight = 30
+	}
+	attrs.TitleBarRegion = &ImageRegion{
+		Name:   "TitleBar",
+		Top:    0,
+		Bottom: titleBarHeight,
+		Left:   0,
+		Right:  width,
+	}
+
+	// Detect tabs region (typically right below title bar, ~5-8% of height)
+	tabsHeight := height / 15
+	if tabsHeight < 40 {
+		tabsHeight = 40
+	}
+	attrs.TabsRegion = &ImageRegion{
+		Name:   "Tabs",
+		Top:    titleBarHeight,
+		Bottom: titleBarHeight + tabsHeight,
+		Left:   0,
+		Right:  width,
+	}
+
+	// Detect column headers (below tabs, ~5% of height)
+	headerHeight := height / 20
+	if headerHeight < 30 {
+		headerHeight = 30
+	}
+	haederTop := titleBarHeight + tabsHeight
+	attrs.HeaderRegion = &ImageRegion{
+		Name:   "Headers",
+		Top:    haederTop,
+		Bottom: haederTop + headerHeight,
+		Left:   0,
+		Right:  width,
+	}
+
+	// Detect bottom button region (typically last 8-10% of height)
+	buttonHeight := height / 10
+	if buttonHeight < 50 {
+		buttonHeight = 50
+	}
+	attrs.ButtonRegion = &ImageRegion{
+		Name:   "BottomButton",
+		Top:    height - buttonHeight,
+		Bottom: height,
+		Left:   0,
+		Right:  width,
+	}
+
+	// Data region is everything between headers and bottom button
+	dataTop := haederTop + headerHeight
+	dataBottom := height - buttonHeight
+	attrs.DataRegion = &ImageRegion{
+		Name:   "DataRows",
+		Top:    dataTop,
+		Bottom: dataBottom,
+		Left:   0,
+		Right:  width,
+	}
+
+	// Estimate row height and count
+	dataHeight := dataBottom - dataTop
+	attrs.RowHeight = dataHeight / 10 // Assume ~10 visible rows
+	if attrs.RowHeight < 40 {
+		attrs.RowHeight = 40
+	}
+	attrs.EstimatedRows = dataHeight / attrs.RowHeight
+
+	log.Printf("Screenshot Analysis: %dx%d, DataRegion: (%d,%d) to (%d,%d), Est. Rows: %d",
+		width, height, attrs.DataRegion.Left, attrs.DataRegion.Top,
+		attrs.DataRegion.Right, attrs.DataRegion.Bottom, attrs.EstimatedRows)
+
+	return attrs
+}
+
+// Crop image to data region only
+func cropToDataRegion(img image.Image, region *ImageRegion) image.Image {
+	bounds := img.Bounds()
+	top := region.Top
+	bottom := region.Bottom
+	left := region.Left
+	right := region.Right
+
+	// Ensure bounds are valid
+	if top < bounds.Min.Y {
+		top = bounds.Min.Y
+	}
+	if bottom > bounds.Max.Y {
+		bottom = bounds.Max.Y
+	}
+	if left < bounds.Min.X {
+		left = bounds.Min.X
+	}
+	if right > bounds.Max.X {
+		right = bounds.Max.X
+	}
+
+	croppedImg := image.NewRGBA(image.Rect(0, 0, right-left, bottom-top))
+	draw.Draw(croppedImg, croppedImg.Bounds(), img, image.Point{left, top}, draw.Src)
+
+	log.Printf("Cropped image from %v to %v", bounds, croppedImg.Bounds())
+	return croppedImg
+}
+
+// Convert image to grayscale
+func convertToGrayscale(img image.Image) *image.Gray {
+	bounds := img.Bounds()
+	gray := image.NewGray(bounds)
+
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			gray.Set(x, y, img.At(x, y))
+		}
+	}
+
+	return gray
+}
+
+// Enhance contrast using histogram equalization (simplified)
+func enhanceContrast(img *image.Gray) *image.Gray {
+	bounds := img.Bounds()
+	enhanced := image.NewGray(bounds)
+
+	// Calculate histogram
+	histogram := make([]int, 256)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			grayVal := img.GrayAt(x, y).Y
+			histogram[grayVal]++
+		}
+	}
+
+	// Calculate cumulative distribution
+	totalPixels := bounds.Dx() * bounds.Dy()
+	cdf := make([]float64, 256)
+	cdf[0] = float64(histogram[0]) / float64(totalPixels)
+	for i := 1; i < 256; i++ {
+		cdf[i] = cdf[i-1] + float64(histogram[i])/float64(totalPixels)
+	}
+
+	// Apply equalization
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			grayVal := img.GrayAt(x, y).Y
+			newVal := uint8(cdf[grayVal] * 255)
+			enhanced.SetGray(x, y, color.Gray{Y: newVal})
+		}
+	}
+
+	return enhanced
+}
+
+// Apply adaptive thresholding to enhance text
+func applyAdaptiveThreshold(img *image.Gray, blockSize int) *image.Gray {
+	bounds := img.Bounds()
+	thresholded := image.NewGray(bounds)
+
+	halfBlock := blockSize / 2
+
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			// Calculate local mean in block
+			sum := 0
+			count := 0
+			for by := y - halfBlock; by <= y+halfBlock; by++ {
+				for bx := x - halfBlock; bx <= x+halfBlock; bx++ {
+					if bx >= bounds.Min.X && bx < bounds.Max.X && by >= bounds.Min.Y && by < bounds.Max.Y {
+						sum += int(img.GrayAt(bx, by).Y)
+						count++
+					}
+				}
+			}
+			mean := uint8(sum / count)
+
+			// Threshold: if pixel is darker than local mean, make it black, else white
+			pixel := img.GrayAt(x, y).Y
+			if pixel < mean-10 { // -10 for bias towards text
+				thresholded.SetGray(x, y, color.Gray{Y: 0}) // Black (text)
+			} else {
+				thresholded.SetGray(x, y, color.Gray{Y: 255}) // White (background)
+			}
+		}
+	}
+
+	return thresholded
+}
+
+// Invert image (make text black on white background)
+func invertImage(img *image.Gray) *image.Gray {
+	bounds := img.Bounds()
+	inverted := image.NewGray(bounds)
+
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			grayVal := img.GrayAt(x, y).Y
+			inverted.SetGray(x, y, color.Gray{Y: 255 - grayVal})
+		}
+	}
+
+	return inverted
+}
+
+// Preprocess image for better OCR
+func preprocessImageForOCR(imageData []byte) ([]byte, error) {
+	// Decode image
+	img, format, err := image.Decode(bytes.NewReader(imageData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode image: %v", err)
+	}
+
+	log.Printf("Original image: %dx%d, format: %s", img.Bounds().Dx(), img.Bounds().Dy(), format)
+
+	// Analyze screenshot to detect regions
+	attrs := analyzeScreenshot(img)
+
+	// Crop to data region only (remove UI elements)
+	croppedImg := cropToDataRegion(img, attrs.DataRegion)
+
+	// Convert to grayscale
+	grayImg := convertToGrayscale(croppedImg)
+
+	// Enhance contrast
+	enhancedImg := enhanceContrast(grayImg)
+
+	// Apply adaptive thresholding for better text extraction
+	// Use smaller block size for dense text
+	blockSize := 25
+	if attrs.RowHeight < 50 {
+		blockSize = 15
+	}
+	thresholdedImg := applyAdaptiveThreshold(enhancedImg, blockSize)
+
+	// Invert if needed (OCR works better with black text on white)
+	processedImg := invertImage(thresholdedImg)
+
+	// Encode back to bytes
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, processedImg); err != nil {
+		return nil, fmt.Errorf("failed to encode processed image: %v", err)
+	}
+
+	log.Printf("Image preprocessed: %dx%d -> %dx%d",
+		img.Bounds().Dx(), img.Bounds().Dy(),
+		processedImg.Bounds().Dx(), processedImg.Bounds().Dy())
+
+	return buf.Bytes(), nil
+}
+
+// Extract power data from image using OCR with preprocessing
 func extractPowerDataFromImage(imageData []byte) ([]struct {
 	MemberName string `json:"member_name"`
 	Power      int64  `json:"power"`
 }, error) {
+	// Preprocess image to filter and enhance relevant regions
+	processedData, err := preprocessImageForOCR(imageData)
+	if err != nil {
+		log.Printf("Warning: Image preprocessing failed: %v. Using original image.", err)
+		processedData = imageData // Fallback to original
+	}
+
 	client := gosseract.NewClient()
 	defer client.Close()
 
-	err := client.SetImageFromBytes(imageData)
+	err = client.SetImageFromBytes(processedData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load image: %v", err)
 	}
@@ -3418,15 +3716,15 @@ func parsePowerRankingsText(text string) []struct {
 	}
 
 	lines := strings.Split(text, "\n")
-	
+
 	// Pattern specifically for Last War rankings format
 	// Matches: optional rank badge (R4, R3), name (letters/numbers), then large power number
 	// Examples: "R4 Gary6126 73716853", "Anjel87 57250482", "R3 DYNOSUR 53913479"
 	rankPattern := regexp.MustCompile(`(?:R[0-9]\s+)?([A-Za-z][A-Za-z0-9_\s]*?)\s+([0-9]{7,})`)
-	
+
 	// Alternative simpler pattern: any word followed by 7+ digit number
 	simplePattern := regexp.MustCompile(`([A-Za-z][A-Za-z0-9_]+)\s+([0-9]{7,})`)
-	
+
 	// Track seen names to avoid duplicates from multi-line OCR
 	seenNames := make(map[string]bool)
 
@@ -3435,19 +3733,19 @@ func parsePowerRankingsText(text string) []struct {
 		if line == "" {
 			continue
 		}
-		
+
 		// Skip lines that are clearly UI elements or rank numbers
 		if len(line) < 5 || regexp.MustCompile(`^[0-9]{1,2}$`).MatchString(line) {
 			continue
 		}
-		
+
 		// Skip common UI text
 		lowerLine := strings.ToLower(line)
-		if strings.Contains(lowerLine, "ranking") || 
-		   strings.Contains(lowerLine, "commander") || 
-		   strings.Contains(lowerLine, "power") ||
-		   strings.Contains(lowerLine, "kills") ||
-		   strings.Contains(lowerLine, "donation") {
+		if strings.Contains(lowerLine, "ranking") ||
+			strings.Contains(lowerLine, "commander") ||
+			strings.Contains(lowerLine, "power") ||
+			strings.Contains(lowerLine, "kills") ||
+			strings.Contains(lowerLine, "donation") {
 			continue
 		}
 
@@ -3457,17 +3755,17 @@ func parsePowerRankingsText(text string) []struct {
 			// Try simple pattern
 			matches = simplePattern.FindStringSubmatch(line)
 		}
-		
+
 		if len(matches) >= 3 {
 			name := strings.TrimSpace(matches[1])
 			powerStr := strings.ReplaceAll(matches[2], ",", "")
 			powerStr = strings.ReplaceAll(powerStr, " ", "")
 
 			power, err := strconv.ParseInt(powerStr, 10, 64)
-			
+
 			// Validate: power should be realistic (1M to 1B range), name should be reasonable
-			if err == nil && power >= 1000000 && power <= 9999999999 && 
-			   len(name) >= 3 && len(name) <= 30 && !seenNames[name] {
+			if err == nil && power >= 1000000 && power <= 9999999999 &&
+				len(name) >= 3 && len(name) <= 30 && !seenNames[name] {
 				records = append(records, struct {
 					MemberName string `json:"member_name"`
 					Power      int64  `json:"power"`
