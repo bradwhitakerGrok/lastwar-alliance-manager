@@ -3399,11 +3399,11 @@ func extractPowerDataFromImage(imageData []byte) ([]struct {
 
 	// Parse the OCR text
 	records := parsePowerRankingsText(text)
-	
+
 	if len(records) == 0 {
 		return nil, fmt.Errorf("no valid records found in extracted text (see server logs for OCR output)")
 	}
-	
+
 	return records, nil
 }
 
@@ -3418,13 +3418,13 @@ func parsePowerRankingsText(text string) []struct {
 	}
 
 	lines := strings.Split(text, "\n")
-	
+
 	// Multiple patterns to try for matching name and power
 	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`^([A-Za-z0-9_]+)\s+([0-9,\s]+)$`),                    // Name Power
-		regexp.MustCompile(`^([A-Za-z0-9_]+)[\s,;:|]+([0-9,\s]+)$`),              // Name separator Power
-		regexp.MustCompile(`^([^,\d]+?)[\s,;:|]+([0-9,\s]+)$`),                   // More flexible name
-		regexp.MustCompile(`([A-Za-z0-9_]+).*?([0-9]{5,})`),                      // Name ... numbers (5+ digits)
+		regexp.MustCompile(`^([A-Za-z0-9_]+)\s+([0-9,\s]+)$`),       // Name Power
+		regexp.MustCompile(`^([A-Za-z0-9_]+)[\s,;:|]+([0-9,\s]+)$`), // Name separator Power
+		regexp.MustCompile(`^([^,\d]+?)[\s,;:|]+([0-9,\s]+)$`),      // More flexible name
+		regexp.MustCompile(`([A-Za-z0-9_]+).*?([0-9]{5,})`),         // Name ... numbers (5+ digits)
 	}
 
 	for _, line := range lines {
@@ -3459,6 +3459,49 @@ func parsePowerRankingsText(text string) []struct {
 	}
 
 	return records
+}
+
+// Calculate string similarity (0-100) using a simple algorithm
+func calculateSimilarity(s1, s2 string) int {
+	// If one contains the other, high score
+	if strings.Contains(s1, s2) || strings.Contains(s2, s1) {
+		return 85
+	}
+	
+	// Calculate Levenshtein distance
+	if len(s1) == 0 {
+		return 0
+	}
+	if len(s2) == 0 {
+		return 0
+	}
+	
+	// Simple similarity: count matching characters in sequence
+	maxLen := len(s1)
+	if len(s2) > maxLen {
+		maxLen = len(s2)
+	}
+	
+	matches := 0
+	for i := 0; i < len(s1) && i < len(s2); i++ {
+		if s1[i] == s2[i] {
+			matches++
+		}
+	}
+	
+	// Also check for common substrings
+	commonChars := 0
+	for _, c := range s1 {
+		if strings.ContainsRune(s2, c) {
+			commonChars++
+		}
+	}
+	
+	// Weighted average
+	positionScore := (matches * 100) / maxLen
+	charScore := (commonChars * 100) / len(s1)
+	
+	return (positionScore*6 + charScore*4) / 10
 }
 
 // Process screenshot data with OCR support
@@ -3543,14 +3586,58 @@ func processPowerScreenshot(w http.ResponseWriter, r *http.Request) {
 	failedCount := 0
 	errors := []string{}
 
+	// Get all member names for fuzzy matching
+	allMembers := []struct {
+		ID   int
+		Name string
+	}{}
+	rows, err := tx.Query("SELECT id, name FROM members")
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var m struct {
+				ID   int
+				Name string
+			}
+			if rows.Scan(&m.ID, &m.Name) == nil {
+				allMembers = append(allMembers, m)
+			}
+		}
+	}
+
 	for _, record := range records {
-		// Find member by name
+		// Try exact match first
 		var memberID int
 		err := tx.QueryRow("SELECT id FROM members WHERE name = ?", record.MemberName).Scan(&memberID)
+		
 		if err != nil {
-			failedCount++
-			errors = append(errors, fmt.Sprintf("Member '%s' not found", record.MemberName))
-			continue
+			// Try case-insensitive match
+			err = tx.QueryRow("SELECT id FROM members WHERE LOWER(name) = LOWER(?)", record.MemberName).Scan(&memberID)
+		}
+		
+		if err != nil {
+			// Try fuzzy matching with Levenshtein-like similarity
+			bestMatch := ""
+			bestMatchID := 0
+			bestScore := 0
+			
+			for _, member := range allMembers {
+				score := calculateSimilarity(strings.ToLower(record.MemberName), strings.ToLower(member.Name))
+				if score > bestScore && score > 60 { // 60% similarity threshold
+					bestScore = score
+					bestMatch = member.Name
+					bestMatchID = member.ID
+				}
+			}
+			
+			if bestMatchID > 0 {
+				memberID = bestMatchID
+				log.Printf("Fuzzy matched '%s' to '%s' (score: %d%%)", record.MemberName, bestMatch, bestScore)
+			} else {
+				failedCount++
+				errors = append(errors, fmt.Sprintf("Member '%s' not found (no close matches)", record.MemberName))
+				continue
+			}
 		}
 
 		// Insert power record
