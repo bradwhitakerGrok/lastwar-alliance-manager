@@ -32,11 +32,11 @@ import (
 )
 
 type Member struct {
-	ID       int     `json:"id"`
-	Name     string  `json:"name"`
-	Rank     string  `json:"rank"`
-	Eligible bool    `json:"eligible"`
-	Power    *int64  `json:"power,omitempty"`
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	Rank     string `json:"rank"`
+	Eligible bool   `json:"eligible"`
+	Power    *int64 `json:"power,omitempty"`
 }
 
 type MemberStats struct {
