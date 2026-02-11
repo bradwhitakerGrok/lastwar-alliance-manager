@@ -2926,13 +2926,13 @@ button {
 .help-text {
     display: block;
     font-size: 0.85em;
-    color: #666;
+    color: var(--text-muted);
     margin-top: 5px;
     font-style: italic;
 }
 
 .info-text {
-    color: #666;
+    color: var(--text-muted);
     margin-bottom: 20px;
     padding: 15px;
     background: #e3f2fd;
@@ -3640,7 +3640,7 @@ button {
 .loading, .error, .empty {
     text-align: center;
     padding: 40px;
-    color: #666;
+    color: var(--text-muted);
     font-style: italic;
 }
 
