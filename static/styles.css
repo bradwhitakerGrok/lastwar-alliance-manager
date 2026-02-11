@@ -228,7 +228,7 @@ header .user-info {
 }
 
 .dropdown-item:hover {
-    background: #f8f9fa;
+    background: var(--card-bg);
     color: #667eea;
 }
 
@@ -326,8 +326,8 @@ header .user-info {
 
 .nav-menu {
     display: flex;
-    background: #f8f9fa;
-    border-bottom: 2px solid #dee2e6;
+    background: var(--card-bg);
+    border-bottom: 2px solid var(--border-color);
     padding: 0;
 }
 
@@ -469,7 +469,7 @@ main {
 }
 
 .csv-help code {
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 3px 8px;
     border-radius: 4px;
     font-family: 'Courier New', monospace;
@@ -595,11 +595,11 @@ main {
 }
 
 .form-section {
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 25px;
     border-radius: 10px;
     margin-bottom: 30px;
-    border: 2px solid #e9ecef;
+    border: 2px solid var(--border-color);
 }
 
 .form-section h3 {
@@ -1319,7 +1319,7 @@ button {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 15px;
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 20px;
     border-radius: 8px;
 }
@@ -1578,7 +1578,7 @@ button {
 
 /* Train Schedule Styles */
 .schedule-controls {
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 20px;
     border-radius: 10px;
     margin-bottom: 30px;
@@ -1598,14 +1598,14 @@ button {
 }
 
 .weekly-message-section {
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 20px;
     border-radius: 10px;
     margin-bottom: 30px;
 }
 
 .weekly-message-section h3 {
-    color: #495057;
+    color: var(--text-primary);
     margin-bottom: 15px;
 }
 
@@ -1955,7 +1955,7 @@ button {
 
 .radio-label:hover {
     border-color: #667eea;
-    background: #f8f9fa;
+    background: var(--card-bg);
 }
 
 .radio-label input[type="radio"] {
@@ -2059,11 +2059,11 @@ button {
 .history-notes {
     margin-top: 8px;
     padding: 8px;
-    background: #f8f9fa;
+    background: var(--card-bg);
     border-radius: 5px;
     font-size: 0.9em;
     font-style: italic;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 @media (max-width: 768px) {
@@ -2096,7 +2096,7 @@ button {
 
 /* Awards Page Styles */
 .awards-controls {
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 20px;
     border-radius: 10px;
     margin-bottom: 30px;
@@ -2108,12 +2108,12 @@ button {
 
 .week-info h3 {
     margin: 0;
-    color: #495057;
+    color: var(--text-primary);
 }
 
 .week-subtitle {
     margin: 5px 0 0 0;
-    color: #6c757d;
+    color: var(--text-muted);
     font-size: 0.9em;
 }
 
@@ -2210,8 +2210,8 @@ button {
 
 .inactive-awards-section {
     grid-column: 1 / -1;
-    background: #f8f9fa;
-    border: 2px dashed #dee2e6;
+    background: var(--card-bg);
+    border: 2px dashed var(--border-color);
     border-radius: 10px;
     padding: 20px;
     margin-top: 20px;
@@ -2319,7 +2319,7 @@ button {
 .week-history {
     margin-bottom: 40px;
     padding: 20px;
-    background: #f8f9fa;
+    background: var(--card-bg);
     border-radius: 10px;
 }
 
@@ -2394,7 +2394,7 @@ button {
 
 /* Recommendations Page Styles */
 .recommendation-form-section {
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 25px;
     border-radius: 10px;
     margin: 30px;
@@ -2492,7 +2492,7 @@ button {
 
 .filter-chip:hover {
     border-color: #667eea;
-    background: #f8f9fa;
+    background: var(--card-bg);
 }
 
 .filter-chip.active {
@@ -2528,7 +2528,7 @@ button {
 
 .toggle-btn:hover {
     border-color: #667eea;
-    background: #f8f9fa;
+    background: var(--card-bg);
 }
 
 .toggle-btn.active {
@@ -2668,7 +2668,7 @@ button {
 }
 
 .recommendation-item {
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 12px 15px;
     border-radius: 8px;
     border-left: 4px solid #e9ecef;
@@ -2758,7 +2758,7 @@ button {
 
 .recommendation-card.expired {
     opacity: 0.7;
-    background: #f8f9fa;
+    background: var(--card-bg);
     border-color: #28a745;
 }
 
@@ -2870,7 +2870,7 @@ button {
 }
 
 .recommendation-notes {
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 12px;
     border-radius: 6px;
     border-left: 4px solid #667eea;
@@ -2907,7 +2907,7 @@ button {
 .settings-group {
     margin-bottom: 30px;
     padding: 20px;
-    background: #f8f9fa;
+    background: var(--card-bg);
     border-radius: 8px;
     border-left: 4px solid #667eea;
 }
@@ -2947,7 +2947,7 @@ button {
 }
 
 .info-card {
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 20px;
     border-radius: 8px;
     border-left: 4px solid #667eea;
@@ -3022,7 +3022,7 @@ button {
 }
 
 .chart-container {
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 20px;
     border-radius: 10px;
     border: 2px solid #e9ecef;
@@ -3047,7 +3047,7 @@ button {
     justify-content: center;
     margin: 20px 0;
     padding: 15px;
-    background: #f8f9fa;
+    background: var(--card-bg);
     border-radius: 8px;
     flex-wrap: wrap;
 }
@@ -3084,7 +3084,7 @@ button {
     margin: 20px auto;
     max-width: 600px;
     padding: 15px;
-    background: #f8f9fa;
+    background: var(--card-bg);
     border-radius: 8px;
 }
 
@@ -3124,7 +3124,7 @@ button {
 }
 
 .member-timeline-chart {
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 20px;
     border-radius: 10px;
     border: 2px solid #e9ecef;
@@ -3168,9 +3168,9 @@ button {
     gap: 15px;
     margin-bottom: 20px;
     padding: 15px;
-    background: #f8f9fa;
+    background: var(--card-bg);
     border-radius: 8px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--border-color);
     flex-wrap: wrap;
 }
 
@@ -3219,7 +3219,7 @@ button {
 }
 
 .secondary-btn {
-    background: #f8f9fa;
+    background: var(--card-bg);
     color: #495057;
     padding: 8px 20px;
     border: 1px solid #ddd;
@@ -3245,7 +3245,7 @@ button {
 }
 
 .system-info-card {
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 25px;
     border-radius: 8px;
     border-left: 4px solid #667eea;
@@ -3388,7 +3388,7 @@ button {
 }
 
 .detail-section {
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 15px;
     border-radius: 8px;
 }
@@ -3493,7 +3493,7 @@ button {
     align-items: center;
     gap: 10px;
     padding: 10px;
-    background: #f8f9fa;
+    background: var(--card-bg);
     border-radius: 6px;
     border-left: 4px solid #667eea;
 }
@@ -3531,7 +3531,7 @@ button {
     align-items: center;
     gap: 8px;
     padding: 6px 10px;
-    background: #f8f9fa;
+    background: var(--card-bg);
     border-radius: 20px;
     border: 1px solid #dee2e6;
     font-size: 0.9em;
@@ -3545,7 +3545,7 @@ button {
 
 .award-compact-item.expired-award {
     opacity: 0.5;
-    background: #f8f9fa;
+    background: var(--card-bg);
     border-color: #ced4da;
     border-style: dashed;
 }
@@ -3716,7 +3716,7 @@ button {
    ======================================== */
 
 .storm-strategy {
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    background: var(--card-bg);
 }
 
 .strategy-phases {
@@ -3756,17 +3756,17 @@ button {
 }
 
 .storm-stage {
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 20px;
     border-radius: 10px;
 }
 
 .storm-stage-title {
     margin: 0 0 20px 0;
-    color: #495057;
+    color: var(--text-primary);
     font-size: 1.2em;
     padding-bottom: 10px;
-    border-bottom: 2px solid #dee2e6;
+    border-bottom: 2px solid var(--border-color);
 }
 
 .storm-stage-buildings {
@@ -3978,7 +3978,7 @@ button {
 }
 
 .mail-content {
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 20px;
     border-radius: 8px;
     font-family: 'Courier New', monospace;
@@ -4015,7 +4015,7 @@ button {
    ======================================== */
 
 .upload-instructions {
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 20px;
     border-radius: 8px;
     margin-bottom: 20px;
@@ -4049,7 +4049,7 @@ button {
 
 .file-preview {
     position: relative;
-    background: #f8f9fa;
+    background: var(--card-bg);
     border: 2px solid #dee2e6;
     border-radius: 8px;
     padding: 10px;
@@ -4230,7 +4230,7 @@ button {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 20px;
-    background: #f8f9fa;
+    background: var(--card-bg);
     padding: 30px;
     border-radius: 10px;
 }
