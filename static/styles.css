@@ -3318,12 +3318,12 @@ button {
 
 .rank-second {
     border-color: #C0C0C0;
-    background: linear-gradient(to right, #fafafa, white);
+    background: linear-gradient(to right, rgba(192, 192, 192, 0.1), var(--container-bg));
 }
 
 .rank-third {
     border-color: #CD7F32;
-    background: linear-gradient(to right, #fff8f2, white);
+    background: linear-gradient(to right, rgba(205, 127, 50, 0.1), var(--container-bg));
 }
 
 .ranking-header {
