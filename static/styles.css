@@ -2935,7 +2935,7 @@ button {
     color: var(--text-muted);
     margin-bottom: 20px;
     padding: 15px;
-    background: #e3f2fd;
+    background: var(--card-bg);
     border-radius: 5px;
     border-left: 4px solid #2196F3;
 }
