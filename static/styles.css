@@ -216,7 +216,7 @@ header .user-info {
 .dropdown-item {
     display: block;
     padding: 12px 20px;
-    color: #495057;
+    color: var(--text-primary);
     text-decoration: none;
     font-weight: 500;
     transition: all 0.3s;
@@ -1235,7 +1235,7 @@ button {
     padding: 2px 6px;
     border-radius: 4px;
     font-family: monospace;
-    color: #495057;
+    color: var(--text-secondary);
 }
 
 .csv-upload {
@@ -1533,7 +1533,7 @@ button {
 
 .remove-member-name {
     font-weight: 600;
-    color: #333;
+    color: var(--text-primary);
     font-size: 0.95em;
 }
 
@@ -1891,7 +1891,7 @@ button {
     top: 20px;
     font-size: 28px;
     font-weight: bold;
-    color: #aaa;
+    color: var(--text-muted);
     cursor: pointer;
     transition: color 0.3s;
 }
@@ -1983,7 +1983,7 @@ button {
 }
 
 .history-section h3 {
-    color: #495057;
+    color: var(--text-secondary);
     margin-bottom: 20px;
 }
 
@@ -2258,7 +2258,7 @@ button {
     display: block;
     margin-bottom: 5px;
     font-weight: 600;
-    color: #495057;
+    color: var(--text-secondary);
     font-size: 0.95em;
 }
 
@@ -2325,7 +2325,7 @@ button {
 
 .week-history-title {
     margin: 0 0 20px 0;
-    color: #495057;
+    color: var(--text-secondary);
     font-size: 1.3em;
     padding-bottom: 10px;
     border-bottom: 2px solid #dee2e6;
@@ -2366,7 +2366,7 @@ button {
 
 .history-award-item.rank-2 {
     background: #c0c0c0;
-    color: #495057;
+    color: var(--text-primary);
 }
 
 .history-award-item.rank-3 {
@@ -2420,7 +2420,7 @@ button {
     display: block;
     margin-bottom: 8px;
     font-weight: 600;
-    color: #495057;
+    color: var(--text-secondary);
 }
 
 .notes-input {
@@ -2463,7 +2463,7 @@ button {
 
 .recommendations-list-section h3 {
     margin-bottom: 20px;
-    color: #495057;
+    color: var(--text-secondary);
 }
 
 .filter-section {
@@ -2641,7 +2641,7 @@ button {
 .member-name-large {
     font-size: 1.3em;
     font-weight: 700;
-    color: #495057;
+    color: var(--text-primary);
 }
 
 .grouped-badges {
@@ -2704,7 +2704,7 @@ button {
 
 .rec-by {
     font-size: 0.9em;
-    color: #495057;
+    color: var(--text-secondary);
     font-weight: 500;
 }
 
@@ -2804,7 +2804,7 @@ button {
 .member-name {
     font-size: 1.2em;
     font-weight: 600;
-    color: #495057;
+    color: var(--text-primary);
 }
 
 .member-rank {
@@ -2867,7 +2867,7 @@ button {
 }
 
 .recommended-by strong {
-    color: #495057;
+    color: var(--text-primary);
 }
 
 .recommendation-date {
@@ -3037,7 +3037,7 @@ button {
 }
 
 .chart-container h4 {
-    color: #495057;
+    color: var(--text-secondary);
     margin-bottom: 15px;
     text-align: center;
     font-size: 1.1em;
@@ -3138,7 +3138,7 @@ button {
 }
 
 .member-timeline-chart h5 {
-    color: #495057;
+    color: var(--text-secondary);
     margin-bottom: 15px;
     text-align: center;
     font-size: 1.05em;
@@ -3189,7 +3189,7 @@ button {
 
 .filter-group label {
     font-weight: 600;
-    color: #555;
+    color: var(--text-secondary);
     white-space: nowrap;
 }
 
@@ -3353,7 +3353,7 @@ button {
 .ranking-position h4 {
     margin: 0;
     font-size: 1.5em;
-    color: #333;
+    color: var(--text-primary);
 }
 
 .rank-badge {
@@ -3465,7 +3465,7 @@ button {
 
 .detail-label {
     font-weight: 600;
-    color: #555;
+    color: var(--text-secondary);
 }
 
 .detail-value {
@@ -3513,7 +3513,7 @@ button {
 
 .award-type {
     font-weight: 600;
-    color: #495057;
+    color: var(--text-primary);
 }
 
 .award-rank {
