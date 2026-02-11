@@ -57,24 +57,24 @@
         }
 
         .drop-zone {
-            border: 3px dashed #dee2e6;
+            border: 3px dashed var(--border-color);
             border-radius: 12px;
             padding: 40px 20px;
             text-align: center;
             cursor: pointer;
-            background: #f8f9fa;
+            background: var(--card-bg);
             transition: all 0.3s;
             margin-bottom: 15px;
         }
 
         .drop-zone:hover {
             border-color: #667eea;
-            background: #eff0fb;
+            background: var(--input-bg);
         }
 
         .drop-zone.dragover {
             border-color: #667eea;
-            background: #eff0fb;
+            background: var(--input-bg);
             border-style: solid;
         }
 
@@ -310,7 +310,7 @@
                 <h3 style="margin-top: 0;">📸 Upload Screenshots</h3>
                 <p class="help-text">Upload game screenshots to automatically extract data using OCR, or enter data manually.</p>
                 
-                <div class="screenshot-types" style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                <div class="screenshot-types" style="margin: 20px 0; padding: 15px; background: var(--card-bg); border-radius: 8px;">
                     <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">📋 Supported Screenshot Types:</p>
                     <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
                         <li><strong>⚡ Power Rankings</strong> - Track member power progression over time</li>
