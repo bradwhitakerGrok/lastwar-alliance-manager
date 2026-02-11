@@ -2973,11 +2973,12 @@ button {
 }
 
 .info-box {
-    background: #e7f3ff;
+    background: var(--card-bg);
     padding: 15px;
     border-radius: 5px;
     border-left: 4px solid #4a90e2;
     margin-bottom: 20px;
+    color: var(--text-primary);
 }
 
 .info-box p {
@@ -2986,10 +2987,11 @@ button {
 }
 
 .info-box code {
-    background: #f4f4f4;
+    background: var(--container-bg);
     padding: 2px 6px;
     border-radius: 3px;
     font-family: 'Courier New', monospace;
+    color: var(--text-primary);
 }
 
 .secondary-btn {
