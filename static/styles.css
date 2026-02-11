@@ -2587,18 +2587,23 @@ button {
 
 .stat-content {
     flex: 1;
+    min-width: 0;
 }
 
 .stat-value {
     font-size: 2em;
     font-weight: bold;
     line-height: 1;
+    color: white;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 .stat-label {
     font-size: 0.85em;
     opacity: 0.9;
     margin-top: 5px;
+    color: white;
 }
 
 /* Grouped View Styles */
