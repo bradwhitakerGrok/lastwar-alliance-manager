@@ -3515,8 +3515,8 @@ func generateWeeklyMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get all members and score them
-	memberRows, err := db.Query("SELECT id, name, rank FROM members ORDER BY name")
+	// Get all eligible members and score them
+	memberRows, err := db.Query("SELECT id, name, rank FROM members WHERE eligible = 1 ORDER BY name")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
