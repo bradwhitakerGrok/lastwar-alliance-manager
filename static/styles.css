@@ -2941,9 +2941,9 @@ button {
 }
 
 .info-section {
-    background: white;
+    background: var(--container-bg);
     padding: 30px;
-    border-top: 2px solid #f0f0f0;
+    border-top: 2px solid var(--border-color);
 }
 
 .info-section h3 {
@@ -3275,7 +3275,7 @@ button {
 
 .info-label {
     font-weight: 600;
-    color: #555;
+    color: var(--text-secondary);
 }
 
 .info-value {
