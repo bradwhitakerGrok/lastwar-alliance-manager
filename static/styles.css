@@ -2874,7 +2874,7 @@ button {
     padding: 12px;
     border-radius: 6px;
     border-left: 4px solid #667eea;
-    color: #495057;
+    color: var(--text-muted);
     font-style: italic;
     margin-top: 5px;
 }
@@ -3220,7 +3220,7 @@ button {
 
 .secondary-btn {
     background: var(--card-bg);
-    color: #495057;
+    color: var(--text-secondary);
     padding: 8px 20px;
     border: 1px solid #ddd;
     border-radius: 5px;
