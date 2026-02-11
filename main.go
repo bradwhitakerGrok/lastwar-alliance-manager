@@ -26,7 +26,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
-	"github.com/otiai10/gosseract/v2"
+	gosseract "github.com/otiai10/gosseract/v2"
 	"golang.org/x/crypto/bcrypt"
 	_ "modernc.org/sqlite"
 )

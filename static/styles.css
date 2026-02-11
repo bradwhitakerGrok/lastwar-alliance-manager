@@ -364,6 +364,224 @@ main {
     padding: 30px;
 }
 
+/* Action Bar */
+.action-bar {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+}
+
+.primary-action-btn,
+.secondary-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 28px;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.primary-action-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.primary-action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.secondary-action-btn {
+    background: white;
+    color: #667eea;
+    border: 2px solid #667eea;
+}
+
+.secondary-action-btn:hover {
+    background: #667eea;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+}
+
+.btn-icon {
+    font-size: 1.2em;
+}
+
+.btn-text {
+    font-weight: 600;
+}
+
+/* CSV Import Section */
+.csv-import-section {
+    margin-bottom: 30px;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.csv-import-card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    border: 2px solid #e9ecef;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.csv-import-card h4 {
+    color: #495057;
+    margin-bottom: 15px;
+    font-size: 1.3em;
+}
+
+.csv-help {
+    color: #6c757d;
+    margin-bottom: 20px;
+    font-size: 0.95em;
+    line-height: 1.6;
+}
+
+.csv-help code {
+    background: #f8f9fa;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    color: #e83e8c;
+    font-size: 0.9em;
+}
+
+.csv-upload {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.import-btn {
+    background: #28a745;
+    color: white;
+}
+
+.import-btn:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 3px 10px rgba(40, 167, 69, 0.3);
+}
+
+.permission-notice {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border-left: 4px solid #2196f3;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+}
+
+.permission-notice p {
+    color: #1565c0;
+    font-size: 1em;
+    font-weight: 500;
+    margin: 0;
+}
+
+/* Modal Enhancements */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal-member {
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-member h3 {
+    color: #495057;
+    margin-bottom: 25px;
+    font-size: 1.6em;
+    padding-right: 30px;
+}
+
+.modal-buttons {
+    margin-top: 25px;
+    display: flex;
+    gap: 12px;
+}
+
+.primary-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    flex: 1;
+    padding: 14px 28px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.primary-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.secondary-btn {
+    background: #6c757d;
+    color: white;
+    flex: 1;
+    padding: 14px 28px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.secondary-btn:hover {
+    background: #5a6268;
+    transform: translateY(-1px);
+}
+
 .form-section {
     background: #f8f9fa;
     padding: 25px;
@@ -1638,13 +1856,13 @@ button {
     top: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.6);
     align-items: center;
     justify-content: center;
 }
 
 .modal-content {
-    background: white;
+    background: var(--container-bg);
     padding: 30px;
     border-radius: 15px;
     max-width: 500px;
@@ -1652,6 +1870,7 @@ button {
     max-height: 90vh;
     overflow-y: auto;
     position: relative;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
 
 .close {
@@ -1666,7 +1885,7 @@ button {
 }
 
 .close:hover {
-    color: #000;
+    color: var(--text-primary);
 }
 
 .date-display {
@@ -4353,6 +4572,53 @@ button {
     .modal-footer button {
         width: 100%;
         margin: 0;
+    }
+
+    /* Member modal mobile styles */
+    .modal-member h3 {
+        font-size: 1.3em;
+        margin-bottom: 20px;
+    }
+
+    .modal-buttons {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .modal-buttons button {
+        width: 100%;
+    }
+
+    /* Action bar mobile */
+    .action-bar {
+        flex-direction: column;
+        margin-bottom: 20px;
+        gap: 10px;
+    }
+
+    .primary-action-btn,
+    .secondary-action-btn {
+        width: 100%;
+        justify-content: center;
+        padding: 12px 20px;
+    }
+
+    .csv-import-card {
+        padding: 15px;
+    }
+
+    .csv-import-card h4 {
+        font-size: 1.1em;
+    }
+
+    .csv-upload {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .csv-upload input,
+    .csv-upload button {
+        width: 100%;
     }
 
     /* Table mobile styles */

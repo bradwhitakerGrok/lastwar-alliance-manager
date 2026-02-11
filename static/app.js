@@ -7,6 +7,15 @@ let isR5OrAdmin = false;
 let isAdmin = false;
 let allMembers = []; // Store all members for search filtering
 
+// Modal Elements
+const memberModal = document.getElementById('member-modal');
+const closeMemberModal = document.getElementById('close-member-modal');
+const addMemberBtn = document.getElementById('add-member-btn');
+const cancelBtn = document.getElementById('cancel-btn');
+const importCsvTriggerBtn = document.getElementById('import-csv-trigger-btn');
+const csvImportSection = document.getElementById('csv-import-section');
+const cancelImportBtn = document.getElementById('cancel-import-btn');
+
 // Check authentication on page load
 async function checkAuth() {
     try {
@@ -74,11 +83,11 @@ document.addEventListener('click', (event) => {
 
 // Update UI based on user permissions
 function updateUIPermissions() {
-    const formSection = document.querySelector('.form-section');
+    const actionBar = document.querySelector('.action-bar');
     
-    if (!canManageRanks) {
-        // Hide the add member form for users without permission
-        formSection.style.display = 'none';
+    if (!canManageRanks && actionBar) {
+        // Hide the action bar for users without permission
+        actionBar.style.display = 'none';
         
         // Add notice message
         const notice = document.createElement('div');
@@ -87,6 +96,64 @@ function updateUIPermissions() {
         document.querySelector('main').insertBefore(notice, document.querySelector('.members-section'));
     }
 }
+
+// Modal Functions
+function openMemberModal(editing = false) {
+    if (!canManageRanks) {
+        alert('You do not have permission to manage members. Only R4 and R5 can do this.');
+        return;
+    }
+    memberModal.style.display = 'flex';
+    document.getElementById('member-name').focus();
+}
+
+function closeMemberModalFunc() {
+    memberModal.style.display = 'none';
+    resetMemberForm();
+}
+
+function resetMemberForm() {
+    editingMemberId = null;
+    document.getElementById('member-form').reset();
+    document.getElementById('member-eligible').checked = true;
+    document.getElementById('modal-form-title').textContent = 'Add New Member';
+    document.getElementById('submit-btn').textContent = 'Add Member';
+}
+
+// Event Listeners for Modal
+if (addMemberBtn) {
+    addMemberBtn.addEventListener('click', () => openMemberModal(false));
+}
+
+if (closeMemberModal) {
+    closeMemberModal.addEventListener('click', closeMemberModalFunc);
+}
+
+if (cancelBtn) {
+    cancelBtn.addEventListener('click', closeMemberModalFunc);
+}
+
+if (importCsvTriggerBtn && csvImportSection) {
+    importCsvTriggerBtn.addEventListener('click', () => {
+        csvImportSection.style.display = 'block';
+        csvImportSection.scrollIntoView({ behavior: 'smooth' });
+    });
+}
+
+if (cancelImportBtn && csvImportSection) {
+    cancelImportBtn.addEventListener('click', () => {
+        csvImportSection.style.display = 'none';
+        document.getElementById('csv-file').value = '';
+        document.getElementById('import-result').style.display = 'none';
+    });
+}
+
+// Close modal when clicking outside
+window.addEventListener('click', (event) => {
+    if (event.target === memberModal) {
+        closeMemberModalFunc();
+    }
+});
 
 // Load all members
 async function loadMembers() {
@@ -203,9 +270,6 @@ document.getElementById('member-form').addEventListener('submit', async (e) => {
             if (!response.ok) throw new Error('Failed to update member');
             
             editingMemberId = null;
-            document.getElementById('form-title').textContent = 'Add New Member';
-            document.getElementById('submit-btn').textContent = 'Add Member';
-            document.getElementById('cancel-btn').style.display = 'none';
         } else {
             // Add new member
             const response = await fetch(API_URL, {
@@ -224,9 +288,8 @@ document.getElementById('member-form').addEventListener('submit', async (e) => {
             }
         }
 
-        // Reset form and reload members
-        document.getElementById('member-form').reset();
-        document.getElementById('member-id').value = '';
+        // Close modal, reset form and reload members
+        closeMemberModalFunc();
         await loadMembers();
     } catch (error) {
         console.error('Error saving member:', error);
@@ -245,23 +308,12 @@ function editMember(id, name, rank, eligible) {
     document.getElementById('member-name').value = name;
     document.getElementById('member-rank').value = rank;
     document.getElementById('member-eligible').checked = eligible;
-    document.getElementById('form-title').textContent = 'Edit Member';
+    document.getElementById('modal-form-title').textContent = 'Edit Member';
     document.getElementById('submit-btn').textContent = 'Update Member';
-    document.getElementById('cancel-btn').style.display = 'inline-block';
     
-    // Scroll to form
-    document.querySelector('.form-section').scrollIntoView({ behavior: 'smooth' });
+    // Open modal
+    openMemberModal(true);
 }
-
-// Cancel editing
-document.getElementById('cancel-btn').addEventListener('click', () => {
-    editingMemberId = null;
-    document.getElementById('member-form').reset();
-    document.getElementById('member-eligible').checked = true; // Reset to eligible by default
-    document.getElementById('form-title').textContent = 'Add New Member';
-    document.getElementById('submit-btn').textContent = 'Add Member';
-    document.getElementById('cancel-btn').style.display = 'none';
-});
 
 // Delete a member
 async function deleteMember(id, name) {

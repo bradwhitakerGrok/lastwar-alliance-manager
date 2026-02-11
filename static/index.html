@@ -43,47 +43,67 @@
         </nav>
 
         <main>
-            <section class="form-section">
-                <h3 id="form-title">Add New Member</h3>
-                <form id="member-form">
-                    <input type="hidden" id="member-id">
-                    <div class="form-group">
-                        <label for="member-name">Member Name:</label>
-                        <input type="text" id="member-name" required placeholder="Enter member name">
-                    </div>
-                    <div class="form-group">
-                        <label for="member-rank">Rank:</label>
-                        <select id="member-rank" required>
-                            <option value="">Select Rank</option>
-                            <option value="R5">R5</option>
-                            <option value="R4">R4</option>
-                            <option value="R3">R3</option>
-                            <option value="R2">R2</option>
-                            <option value="R1">R1</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="member-eligible" checked>
-                            <span>Eligible for Train</span>
-                        </label>
-                    </div>
-                    <div class="button-group">
-                        <button type="submit" id="submit-btn">Add Member</button>
-                        <button type="button" id="cancel-btn" style="display: none;">Cancel</button>
-                    </div>
-                </form>
+            <!-- Action Bar -->
+            <div class="action-bar">
+                <button type="button" id="add-member-btn" class="primary-action-btn">
+                    <span class="btn-icon">➕</span>
+                    <span class="btn-text">Add Member</span>
+                </button>
+                <button type="button" id="import-csv-trigger-btn" class="secondary-action-btn">
+                    <span class="btn-icon">📥</span>
+                    <span class="btn-text">Import CSV</span>
+                </button>
+            </div>
 
-                <div class="csv-import-section">
+            <!-- CSV Import Section (Initially Hidden) -->
+            <section class="csv-import-section" id="csv-import-section" style="display: none;">
+                <div class="csv-import-card">
                     <h4>📥 Import from CSV</h4>
                     <p class="csv-help">Upload a CSV file with format: <code>Username,Rank,Power,Level,Status,Last_Active</code> (only Username and Rank will be imported)</p>
                     <div class="csv-upload">
                         <input type="file" id="csv-file" accept=".csv" />
                         <button type="button" id="import-btn" class="import-btn">Preview CSV</button>
+                        <button type="button" id="cancel-import-btn" class="secondary-btn">Cancel</button>
                     </div>
                     <div id="import-result" class="import-result" style="display: none;"></div>
                 </div>
             </section>
+
+            <!-- Member Modal -->
+            <div id="member-modal" class="modal">
+                <div class="modal-content modal-member">
+                    <span class="close" id="close-member-modal">&times;</span>
+                    <h3 id="modal-form-title">Add New Member</h3>
+                    <form id="member-form">
+                        <input type="hidden" id="member-id">
+                        <div class="form-group">
+                            <label for="member-name">Member Name:</label>
+                            <input type="text" id="member-name" required placeholder="Enter member name">
+                        </div>
+                        <div class="form-group">
+                            <label for="member-rank">Rank:</label>
+                            <select id="member-rank" required>
+                                <option value="">Select Rank</option>
+                                <option value="R5">R5</option>
+                                <option value="R4">R4</option>
+                                <option value="R3">R3</option>
+                                <option value="R2">R2</option>
+                                <option value="R1">R1</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="member-eligible" checked>
+                                <span>Eligible for Train</span>
+                            </label>
+                        </div>
+                        <div class="button-group modal-buttons">
+                            <button type="submit" id="submit-btn" class="primary-btn">Add Member</button>
+                            <button type="button" id="cancel-btn" class="secondary-btn">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
 
             <!-- CSV Preview Modal -->
             <div id="csv-preview-modal" class="modal" style="display: none;">
