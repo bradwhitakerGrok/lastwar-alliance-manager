@@ -11,8 +11,11 @@
     --container-bg: white;
     --text-primary: #333;
     --text-secondary: #666;
+    --text-muted: #6c757d;
     --card-bg: #f8f9fa;
     --border-color: #e9ecef;
+    --input-bg: white;
+    --input-border: #dee2e6;
 }
 
 /* Auto theme - respects browser preference */
@@ -24,8 +27,11 @@
         --container-bg: #1a1f2e;
         --text-primary: #e9ecef;
         --text-secondary: rgba(255, 255, 255, 0.7);
+        --text-muted: rgba(255, 255, 255, 0.6);
         --card-bg: rgba(255, 255, 255, 0.05);
         --border-color: rgba(255, 255, 255, 0.1);
+        --input-bg: rgba(255, 255, 255, 0.05);
+        --input-border: rgba(255, 255, 255, 0.2);
     }
 }
 
@@ -37,8 +43,11 @@ html.theme-dark {
     --container-bg: #1a1f2e;
     --text-primary: #e9ecef;
     --text-secondary: rgba(255, 255, 255, 0.7);
+    --text-muted: rgba(255, 255, 255, 0.6);
     --card-bg: rgba(255, 255, 255, 0.05);
     --border-color: rgba(255, 255, 255, 0.1);
+    --input-bg: rgba(255, 255, 255, 0.05);
+    --input-border: rgba(255, 255, 255, 0.2);
 }
 
 /* Explicit light theme */
@@ -49,8 +58,11 @@ html.theme-light {
     --container-bg: white;
     --text-primary: #333;
     --text-secondary: #666;
+    --text-muted: #6c757d;
     --card-bg: #f8f9fa;
     --border-color: #e9ecef;
+    --input-bg: white;
+    --input-border: #dee2e6;
 }
 
 body {
@@ -307,7 +319,7 @@ header .user-info {
 }
 
 .logout-btn:hover {
-    background: white;
+    background: var(--container-bg);
     transform: translateY(-2px);
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
 }
@@ -324,7 +336,7 @@ header .user-info {
     padding: 15px 20px;
     text-align: center;
     text-decoration: none;
-    color: #495057;
+    color: var(--text-primary);
     font-weight: 600;
     font-size: 1.1em;
     transition: all 0.3s;
@@ -337,7 +349,7 @@ header .user-info {
 }
 
 .nav-link.active {
-    background: white;
+    background: var(--container-bg);
     color: #667eea;
     border-bottom-color: #667eea;
 }
@@ -398,7 +410,7 @@ main {
 }
 
 .secondary-action-btn {
-    background: white;
+    background: var(--container-bg);
     color: #667eea;
     border: 2px solid #667eea;
 }
@@ -436,21 +448,21 @@ main {
 }
 
 .csv-import-card {
-    background: white;
+    background: var(--container-bg);
     padding: 25px;
     border-radius: 12px;
-    border: 2px solid #e9ecef;
+    border: 2px solid var(--border-color);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .csv-import-card h4 {
-    color: #495057;
+    color: var(--text-primary);
     margin-bottom: 15px;
     font-size: 1.3em;
 }
 
 .csv-help {
-    color: #6c757d;
+    color: var(--text-secondary);
     margin-bottom: 20px;
     font-size: 0.95em;
     line-height: 1.6;
@@ -534,7 +546,7 @@ main {
 }
 
 .modal-member h3 {
-    color: #495057;
+    color: var(--text-primary);
     margin-bottom: 25px;
     font-size: 1.6em;
     padding-right: 30px;
@@ -591,7 +603,7 @@ main {
 }
 
 .form-section h3 {
-    color: #495057;
+    color: var(--text-primary);
     margin-bottom: 20px;
     font-size: 1.5em;
 }
@@ -603,7 +615,7 @@ main {
 .form-group label {
     display: block;
     margin-bottom: 8px;
-    color: #495057;
+    color: var(--text-primary);
     font-weight: 600;
 }
 
@@ -659,7 +671,7 @@ button {
 }
 
 .members-section h3 {
-    color: #495057;
+    color: var(--text-primary);
     margin-bottom: 20px;
     font-size: 1.5em;
 }
@@ -713,8 +725,8 @@ button {
 }
 
 .member-card {
-    background: white;
-    border: 2px solid #e9ecef;
+    background: var(--container-bg);
+    border: 2px solid var(--border-color);
     border-radius: 10px;
     padding: 20px;
     display: flex;
@@ -736,7 +748,7 @@ button {
 .member-name {
     font-size: 1.3em;
     font-weight: 700;
-    color: #212529;
+    color: var(--text-primary);
     margin-bottom: 5px;
 }
 
@@ -886,7 +898,7 @@ button {
 .empty {
     text-align: center;
     padding: 40px;
-    color: #6c757d;
+    color: var(--text-secondary);
     font-size: 1.1em;
 }
 
@@ -1207,7 +1219,7 @@ button {
 }
 
 .csv-import-section h4 {
-    color: #495057;
+    color: var(--text-primary);
     margin-bottom: 10px;
     font-size: 1.2em;
 }
@@ -1335,7 +1347,7 @@ button {
     display: block;
     font-size: 1.8em;
     font-weight: bold;
-    color: #212529;
+    color: var(--text-primary);
 }
 
 .stat-value.new {
@@ -1363,8 +1375,8 @@ button {
     align-items: center;
     gap: 15px;
     padding: 12px;
-    background: white;
-    border: 2px solid #dee2e6;
+    background: var(--container-bg);
+    border: 2px solid var(--border-color);
     border-radius: 8px;
     transition: all 0.2s;
 }
@@ -1376,12 +1388,12 @@ button {
 
 .csv-member-item.new {
     border-left: 4px solid #28a745;
-    background: linear-gradient(to right, #e8f5e9 0%, white 100%);
+    background: linear-gradient(to right, rgba(40, 167, 69, 0.1) 0%, var(--container-bg) 100%);
 }
 
 .csv-member-item.changed {
     border-left: 4px solid #ffc107;
-    background: linear-gradient(to right, #fff8e1 0%, white 100%);
+    background: linear-gradient(to right, rgba(255, 193, 7, 0.1) 0%, var(--container-bg) 100%);
 }
 
 .csv-member-item .member-checkbox {
@@ -1439,7 +1451,7 @@ button {
     padding: 6px 10px;
     border: 1px solid #ffc107;
     border-radius: 4px;
-    background: white;
+    background: var(--container-bg);
     font-size: 0.9em;
     cursor: pointer;
 }
@@ -1485,7 +1497,7 @@ button {
     max-height: 300px;
     overflow-y: auto;
     padding: 10px;
-    background: white;
+    background: var(--card-bg);
     border-radius: 6px;
 }
 
@@ -1494,7 +1506,7 @@ button {
     align-items: center;
     gap: 10px;
     padding: 10px;
-    background: #fff;
+    background: var(--container-bg);
     border: 1px solid #ffc107;
     border-radius: 6px;
     transition: all 0.2s;
@@ -1604,12 +1616,12 @@ button {
 .message-box textarea {
     width: 100%;
     padding: 15px;
-    border: 2px solid #dee2e6;
+    border: 2px solid var(--border-color);
     border-radius: 8px;
     font-family: 'Courier New', monospace;
     font-size: 14px;
     resize: vertical;
-    background: white;
+    background: var(--container-bg);
 }
 
 .copy-btn {
@@ -1648,7 +1660,7 @@ button {
 }
 
 #week-display {
-    color: #495057;
+    color: var(--text-primary);
     font-size: 1.3em;
     margin: 0;
 }
@@ -1684,8 +1696,8 @@ button {
 }
 
 .day-card {
-    background: white;
-    border: 2px solid #e9ecef;
+    background: var(--container-bg);
+    border: 2px solid var(--border-color);
     border-radius: 10px;
     overflow: hidden;
     transition: all 0.3s;
@@ -1889,11 +1901,11 @@ button {
 }
 
 .date-display {
-    background: #e9ecef;
+    background: var(--card-bg);
     padding: 10px;
     border-radius: 5px;
     font-weight: 600;
-    color: #495057;
+    color: var(--text-primary);
 }
 
 .dropdown-search {
@@ -1984,14 +1996,14 @@ button {
 
 .filter-btn {
     padding: 8px 16px;
-    border: 2px solid #dee2e6;
-    background: white;
+    border: 2px solid var(--border-color);
+    background: var(--container-bg);
     border-radius: 8px;
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s;
-    color: #495057;
+    color: var(--text-primary);
 }
 
 .filter-btn:hover {
@@ -2011,8 +2023,8 @@ button {
 }
 
 .history-card {
-    background: white;
-    border: 2px solid #e9ecef;
+    background: var(--container-bg);
+    border: 2px solid var(--border-color);
     border-radius: 10px;
     padding: 15px;
     transition: all 0.3s;
@@ -2151,8 +2163,8 @@ button {
 }
 
 .award-card {
-    background: white;
-    border: 2px solid #e9ecef;
+    background: var(--container-bg);
+    border: 2px solid var(--border-color);
     border-radius: 10px;
     padding: 20px;
     transition: all 0.3s;
@@ -2220,9 +2232,9 @@ button {
 }
 
 .inactive-award-chip {
-    background: white;
-    color: #495057;
-    border: 2px solid #dee2e6;
+    background: var(--container-bg);
+    color: var(--text-primary);
+    border: 2px solid var(--border-color);
     border-radius: 20px;
     padding: 8px 16px;
     font-size: 14px;
@@ -2326,8 +2338,8 @@ button {
 }
 
 .history-award-card {
-    background: white;
-    border: 2px solid #e9ecef;
+    background: var(--container-bg);
+    border: 2px solid var(--border-color);
     border-radius: 8px;
     padding: 15px;
 }
@@ -2390,14 +2402,14 @@ button {
 
 .recommendation-form-section h3 {
     margin-bottom: 20px;
-    color: #495057;
+    color: var(--text-primary);
 }
 
 .recommendation-form {
-    background: white;
+    background: var(--container-bg);
     padding: 20px;
     border-radius: 8px;
-    border: 2px solid #dee2e6;
+    border: 2px solid var(--border-color);
 }
 
 .form-group {
@@ -2469,13 +2481,13 @@ button {
 
 .filter-chip {
     padding: 8px 16px;
-    border: 2px solid #e9ecef;
+    border: 2px solid var(--border-color);
     border-radius: 20px;
-    background: white;
+    background: var(--container-bg);
     cursor: pointer;
     font-size: 0.9em;
     transition: all 0.3s;
-    color: #6c757d;
+    color: var(--text-secondary);
 }
 
 .filter-chip:hover {
@@ -2505,13 +2517,13 @@ button {
 
 .toggle-btn {
     padding: 10px 20px;
-    border: 2px solid #e9ecef;
+    border: 2px solid var(--border-color);
     border-radius: 8px;
-    background: white;
+    background: var(--container-bg);
     cursor: pointer;
     font-size: 0.9em;
     transition: all 0.3s;
-    color: #495057;
+    color: var(--text-primary);
 }
 
 .toggle-btn:hover {
@@ -2527,7 +2539,7 @@ button {
 
 /* Statistics Dashboard */
 .stats-dashboard {
-    background: white;
+    background: var(--container-bg);
     padding: 30px;
     border-radius: 15px;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
@@ -2591,8 +2603,8 @@ button {
 
 /* Grouped View Styles */
 .grouped-card {
-    background: white;
-    border: 2px solid #e9ecef;
+    background: var(--container-bg);
+    border: 2px solid var(--border-color);
     border-radius: 10px;
     padding: 20px;
     margin-bottom: 15px;
@@ -2713,10 +2725,10 @@ button {
 
 .rec-notes-small {
     font-size: 0.9em;
-    color: #6c757d;
+    color: var(--text-secondary);
     font-style: italic;
     padding: 8px;
-    background: white;
+    background: var(--card-bg);
     border-radius: 5px;
     margin-top: 5px;
 }
@@ -2737,8 +2749,8 @@ button {
 }
 
 .recommendation-card {
-    background: white;
-    border: 2px solid #e9ecef;
+    background: var(--container-bg);
+    border: 2px solid var(--border-color);
     border-radius: 10px;
     padding: 20px;
     transition: all 0.3s;
@@ -2992,7 +3004,7 @@ button {
 
 /* Rankings page styles */
 .charts-section {
-    background: white;
+    background: var(--container-bg);
     padding: 30px;
     margin-top: 20px;
 }
@@ -3046,9 +3058,9 @@ button {
     gap: 8px;
     cursor: pointer;
     padding: 8px 15px;
-    background: white;
+    background: var(--container-bg);
     border-radius: 6px;
-    border: 2px solid #dee2e6;
+    border: 2px solid var(--border-color);
     transition: all 0.3s ease;
 }
 
@@ -3131,7 +3143,7 @@ button {
 }
 
 .rankings-section {
-    background: white;
+    background: var(--container-bg);
     padding: 30px;
     margin-top: 20px;
 }
@@ -3191,10 +3203,10 @@ button {
 
 .filter-group select {
     padding: 8px 12px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-color);
     border-radius: 5px;
     font-size: 1em;
-    background: white;
+    background: var(--container-bg);
     cursor: pointer;
     min-width: 150px;
     transition: border-color 0.3s;
@@ -3251,9 +3263,9 @@ button {
     justify-content: space-between;
     align-items: center;
     padding: 12px;
-    background: white;
+    background: var(--container-bg);
     border-radius: 6px;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--border-color);
 }
 
 .info-label {
@@ -3282,8 +3294,8 @@ button {
 }
 
 .ranking-card {
-    background: white;
-    border: 2px solid #e0e0e0;
+    background: var(--container-bg);
+    border: 2px solid var(--border-color);
     border-radius: 10px;
     padding: 20px;
     transition: all 0.3s;
@@ -3296,7 +3308,7 @@ button {
 
 .rank-first {
     border-color: #FFD700;
-    background: linear-gradient(to right, #fffef7, white);
+    background: linear-gradient(to right, rgba(255, 215, 0, 0.1), var(--container-bg));
 }
 
 .rank-second {
@@ -3422,9 +3434,9 @@ button {
     display: flex;
     justify-content: space-between;
     padding: 10px;
-    background: white;
+    background: var(--card-bg);
     border-radius: 5px;
-    border-left: 3px solid #ddd;
+    border-left: 3px solid var(--border-color);
 }
 
 .detail-item.positive {
@@ -3461,7 +3473,7 @@ button {
 .award-chip {
     display: inline-block;
     padding: 6px 12px;
-    background: white;
+    background: var(--container-bg);
     border: 1px solid #667eea;
     border-radius: 20px;
     font-size: 0.9em;
@@ -3600,20 +3612,20 @@ button {
     flex-direction: column;
     gap: 5px;
     padding: 10px;
-    background: white;
+    background: var(--card-bg);
     border-radius: 5px;
 }
 
 .stat-label {
     font-size: 0.85em;
-    color: #666;
+    color: var(--text-secondary);
     font-weight: 600;
 }
 
 .stat-value {
     font-size: 1.2em;
     font-weight: 700;
-    color: #333;
+    color: var(--text-primary);
 }
 
 .loading, .error, .empty {
@@ -3715,7 +3727,7 @@ button {
 }
 
 .phase-card {
-    background: white;
+    background: var(--container-bg);
     padding: 20px;
     border-radius: 10px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -3723,7 +3735,7 @@ button {
 
 .phase-card h4 {
     margin: 0 0 15px 0;
-    color: #495057;
+    color: var(--text-primary);
     font-size: 1.1em;
 }
 
@@ -3764,7 +3776,7 @@ button {
 }
 
 .storm-building {
-    background: white;
+    background: var(--container-bg);
     padding: 20px;
     border-radius: 10px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -3891,10 +3903,10 @@ button {
 .search-input {
     width: 100%;
     padding: 8px;
-    border: 2px solid #dee2e6;
+    border: 2px solid var(--border-color);
     border-radius: 6px;
     font-size: 0.9em;
-    background: white;
+    background: var(--container-bg);
     cursor: text;
     transition: border-color 0.3s;
 }
@@ -3909,7 +3921,7 @@ button {
     top: 100%;
     left: 0;
     right: 0;
-    background: white;
+    background: var(--container-bg);
     border: 2px solid #667eea;
     border-top: none;
     border-radius: 0 0 6px 6px;
@@ -4160,8 +4172,8 @@ button {
 }
 
 .detected-member-card {
-    background: white;
-    border: 2px solid #dee2e6;
+    background: var(--container-bg);
+    border: 2px solid var(--border-color);
     border-radius: 8px;
     padding: 15px;
     display: flex;
@@ -4177,7 +4189,7 @@ button {
 
 .detected-member-card.new {
     border-color: #28a745;
-    background: linear-gradient(to right, #e8f5e9 0%, white 100%);
+    background: linear-gradient(to right, rgba(40, 167, 69, 0.1) 0%, var(--container-bg) 100%);
 }
 
 .detected-member-card.changed {
@@ -4226,7 +4238,7 @@ button {
 .stat-item {
     text-align: center;
     padding: 20px;
-    background: white;
+    background: var(--container-bg);
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
@@ -4234,7 +4246,7 @@ button {
 .stat-label {
     display: block;
     font-size: 0.9em;
-    color: #6c757d;
+    color: var(--text-secondary);
     margin-bottom: 10px;
 }
 
