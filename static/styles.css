@@ -3335,7 +3335,7 @@ button {
     align-items: center;
     margin-bottom: 20px;
     padding-bottom: 15px;
-    border-bottom: 2px solid #f0f0f0;
+    border-bottom: 2px solid var(--border-color);
 }
 
 .ranking-position {
@@ -3623,18 +3623,19 @@ button {
     background: var(--container-bg);
     border-radius: 5px;
     border: 1px solid var(--border-color);
+    color: var(--text-primary);
 }
 
 .stat-label {
     font-size: 0.85em;
-    color: var(--text-secondary);
+    color: var(--text-secondary) !important;
     font-weight: 600;
 }
 
 .stat-value {
     font-size: 1.2em;
     font-weight: 700;
-    color: var(--text-primary);
+    color: var(--text-primary) !important;
 }
 
 .loading, .error, .empty {
