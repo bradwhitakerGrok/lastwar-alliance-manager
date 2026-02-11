@@ -3243,10 +3243,11 @@ button {
 }
 
 .info-badge {
-    background: #e3f2fd;
+    background: var(--card-bg);
     padding: 10px 20px;
     border-radius: 20px;
     border-left: 4px solid #2196F3;
+    color: var(--text-primary);
 }
 
 .system-info-card {
