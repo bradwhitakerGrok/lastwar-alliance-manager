@@ -344,7 +344,7 @@ header .user-info {
 }
 
 .nav-link:hover {
-    background: #e9ecef;
+    background: var(--card-bg);
     color: #667eea;
 }
 
