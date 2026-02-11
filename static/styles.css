@@ -3032,7 +3032,7 @@ button {
     background: var(--card-bg);
     padding: 20px;
     border-radius: 10px;
-    border: 2px solid #e9ecef;
+    border: 2px solid var(--border-color);
     min-height: 350px;
 }
 
