@@ -1225,7 +1225,7 @@ button {
 }
 
 .csv-help {
-    color: #6c757d;
+    color: var(--text-muted);
     font-size: 0.9em;
     margin-bottom: 15px;
 }
@@ -1331,7 +1331,7 @@ button {
 .stat-label {
     display: block;
     font-size: 0.85em;
-    color: #6c757d;
+    color: var(--text-muted);
     margin-bottom: 5px;
 }
 
@@ -1423,7 +1423,7 @@ button {
 
 .csv-member-item .member-status {
     font-size: 0.85em;
-    color: #6c757d;
+    color: var(--text-muted);
     font-weight: 600;
     min-width: 100px;
     text-align: right;
@@ -1802,7 +1802,7 @@ button {
 }
 
 .no-schedule p {
-    color: #6c757d;
+    color: var(--text-muted);
     margin-bottom: 15px;
 }
 
@@ -2218,7 +2218,7 @@ button {
 }
 
 .inactive-title {
-    color: #6c757d;
+    color: var(--text-muted);
     font-size: 1.1em;
     margin: 0 0 15px 0;
     text-align: center;
@@ -3517,7 +3517,7 @@ button {
 }
 
 .award-rank {
-    color: #6c757d;
+    color: var(--text-muted);
     font-size: 0.9em;
 }
 
@@ -3565,12 +3565,12 @@ button {
 }
 
 .award-compact-item.expired-award .award-type-compact {
-    color: #6c757d;
+    color: var(--text-muted);
     text-decoration: line-through;
 }
 
 .award-compact-item.expired-award .award-points-compact {
-    color: #6c757d;
+    color: var(--text-muted);
     text-decoration: line-through;
 }
 
@@ -3586,13 +3586,13 @@ button {
 
 .award-type-compact {
     font-weight: 600;
-    color: #495057;
+    color: var(--text-primary);
     line-height: 1.2;
 }
 
 .award-week-compact {
     font-size: 0.85em;
-    color: #6c757d;
+    color: var(--text-muted);
     line-height: 1;
 }
 
@@ -3850,7 +3850,7 @@ button {
 
 .priority-badge.medium {
     background: #ffc107;
-    color: #212529;
+    color: var(--text-primary);
 }
 
 .priority-badge.low {
@@ -3900,7 +3900,7 @@ button {
 
 .slot-container label {
     font-size: 0.85em;
-    color: #6c757d;
+    color: var(--text-muted);
     font-weight: 600;
 }
 
@@ -3982,7 +3982,7 @@ button {
 }
 
 .member-select-storm option:first-child {
-    color: #6c757d;
+    color: var(--text-muted);
     font-style: italic;
 }
 
@@ -4032,7 +4032,7 @@ button {
 
 .upload-instructions h4 {
     margin: 0 0 15px 0;
-    color: #495057;
+    color: var(--text-secondary);
 }
 
 .upload-instructions ol {
@@ -4078,7 +4078,7 @@ button {
 }
 
 .file-size {
-    color: #6c757d;
+    color: var(--text-muted);
     font-size: 0.9em;
 }
 
@@ -4127,7 +4127,7 @@ button {
 
 #processing-message {
     font-size: 1.1em;
-    color: #495057;
+    color: var(--text-secondary);
 }
 
 .results-summary {
@@ -4171,7 +4171,7 @@ button {
 
 .detected-members h4 {
     margin: 0 0 20px 0;
-    color: #495057;
+    color: var(--text-secondary);
 }
 
 .members-grid {
@@ -4220,7 +4220,7 @@ button {
 
 .detected-member-card .member-status {
     font-size: 0.85em;
-    color: #6c757d;
+    color: var(--text-muted);
     font-weight: 600;
 }
 
