@@ -181,8 +181,8 @@ async function loadAwardTypes() {
             .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
             .map(at => at.name);
         
-        // Initialize active award types
-        activeAwardTypes = new Set(AWARD_TYPES);
+        // Initialize active award types as empty - will be populated based on assignments
+        activeAwardTypes = new Set();
     } catch (error) {
         console.error('Error loading award types:', error);
         // Fallback to default awards if API fails
@@ -231,6 +231,9 @@ async function loadAwards() {
             }
             currentAwards[award.award_type][award.rank] = award.member_id;
         });
+        
+        // Set active award types to only those with assignments
+        activeAwardTypes = new Set(Object.keys(currentAwards));
         
         renderAwardsForm();
     } catch (error) {
@@ -870,8 +873,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Toggle all awards button
         document.getElementById('toggle-all-awards-btn').addEventListener('click', () => {
             if (activeAwardTypes.size === AWARD_TYPES.length) {
-                // Hide all
-                activeAwardTypes.clear();
+                // Hide all except those with assignments
+                activeAwardTypes = new Set(Object.keys(currentAwards));
             } else {
                 // Show all
                 activeAwardTypes = new Set(AWARD_TYPES);
