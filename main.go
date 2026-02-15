@@ -4599,6 +4599,434 @@ func calculateSimilarity(s1, s2 string) int {
 	return similarity
 }
 
+// Extract VS points data from image and detect which day
+func extractVSPointsDataFromImage(imageData []byte) (day string, records []struct {
+	MemberName string `json:"member_name"`
+	Points     int64  `json:"points"`
+}, error error) {
+	// Preprocess image to filter and enhance relevant regions
+	processedData, err := preprocessImageForOCR(imageData)
+	if err != nil {
+		log.Printf("Warning: Image preprocessing failed: %v. Using original image.", err)
+		processedData = imageData // Fallback to original
+	}
+
+	client := gosseract.NewClient()
+	defer client.Close()
+
+	err = client.SetImageFromBytes(processedData)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to load image: %v", err)
+	}
+
+	// Try different PSM modes for better recognition
+	var text string
+	psmModes := []gosseract.PageSegMode{
+		gosseract.PSM_AUTO,
+		gosseract.PSM_SINGLE_BLOCK,
+		gosseract.PSM_SPARSE_TEXT,
+	}
+
+	for i, mode := range psmModes {
+		client.SetPageSegMode(mode)
+		extractedText, err := client.Text()
+		if err == nil && len(strings.TrimSpace(extractedText)) > 0 {
+			text = extractedText
+			log.Printf("OCR successful with PSM mode %d (attempt %d)", mode, i+1)
+			break
+		}
+		log.Printf("OCR attempt %d with PSM mode %d failed or empty", i+1, mode)
+	}
+
+	if len(strings.TrimSpace(text)) == 0 {
+		return "", nil, fmt.Errorf("OCR failed: no text extracted after trying multiple modes")
+	}
+
+	// Log the extracted text for debugging
+	log.Printf("OCR extracted text:\n%s\n---END OCR---", text)
+
+	// Detect which day is selected by looking for day names in the text
+	detectedDay := detectSelectedDay(text)
+	if detectedDay == "" {
+		return "", nil, fmt.Errorf("could not detect which day is selected (Mon-Sat). Make sure the screenshot shows the Daily Rank tab")
+	}
+
+	// Parse the OCR text for VS points
+	records = parseVSPointsText(text)
+
+	if len(records) == 0 {
+		return "", nil, fmt.Errorf("no valid VS point records found in extracted text (see server logs for OCR output)")
+	}
+
+	return detectedDay, records, nil
+}
+
+// Detect which day is selected from OCR text
+// Looks for day names and context clues to determine the active tab
+func detectSelectedDay(text string) string {
+	textLower := strings.ToLower(text)
+
+	// Check for presence of day names and "Daily Rank" which indicates VS points screen
+	if !strings.Contains(textLower, "daily") && !strings.Contains(textLower, "rank") {
+		return "" // Not a daily rank screen
+	}
+
+	// Count occurrences of each day name (the selected day often appears more prominently)
+	days := map[string][]string{
+		"monday":    {"monday", "mon.", "mon"},
+		"tuesday":   {"tuesday", "tues.", "tues"},
+		"wednesday": {"wednesday", "wed.", "wed"},
+		"thursday":  {"thursday", "thur.", "thur"},
+		"friday":    {"friday", "fri.", "fri"},
+		"saturday":  {"saturday", "sat.", "sat"},
+	}
+
+	dayScores := make(map[string]int)
+
+	for standardDay, variants := range days {
+		for _, variant := range variants {
+			// Count occurrences
+			count := strings.Count(textLower, variant)
+			dayScores[standardDay] += count
+
+			// Higher weight if it appears near the beginning (likely the tab)
+			if strings.Index(textLower, variant) < 200 {
+				dayScores[standardDay] += 2
+			}
+		}
+	}
+
+	// Find the day with the highest score
+	maxScore := 0
+	selectedDay := ""
+	for day, score := range dayScores {
+		if score > maxScore {
+			maxScore = score
+			selectedDay = day
+		}
+	}
+
+	// If we couldn't conclusively determine the day, try to infer from current date
+	if maxScore == 0 || maxScore < 2 {
+		// Use current day of week as fallback
+		now := time.Now()
+		weekday := now.Weekday()
+		switch weekday {
+		case time.Monday:
+			selectedDay = "monday"
+		case time.Tuesday:
+			selectedDay = "tuesday"
+		case time.Wednesday:
+			selectedDay = "wednesday"
+		case time.Thursday:
+			selectedDay = "thursday"
+		case time.Friday:
+			selectedDay = "friday"
+		case time.Saturday:
+			selectedDay = "saturday"
+		default:
+			// Sunday - default to Monday
+			selectedDay = "monday"
+		}
+		log.Printf("Could not detect day from OCR, using current day: %s", selectedDay)
+	} else {
+		log.Printf("Detected day from OCR: %s (score: %d)", selectedDay, maxScore)
+	}
+
+	return selectedDay
+}
+
+// Parse VS points text(from OCR or manual input)
+func parseVSPointsText(text string) []struct {
+	MemberName string `json:"member_name"`
+	Points     int64  `json:"points"`
+} {
+	var records []struct {
+		MemberName string `json:"member_name"`
+		Points     int64  `json:"points"`
+	}
+
+	lines := strings.Split(text, "\n")
+
+	// Pattern for VS points - similar to power rankings but with different number ranges
+	// VS points are typically 6-9 digits (100k to 999M range)
+	// Examples: "Gary6126 30598466", "Gargoland 23660312"
+	rankPattern := regexp.MustCompile(`(?:R[0-9]\s+)?([A-Za-z][A-Za-z0-9_\s]*?)\s+([0-9]{6,})`)
+	simplePattern := regexp.MustCompile(`([A-Za-z][A-Za-z0-9_]+)\s+([0-9]{6,})`)
+
+	// Track seen names to avoid duplicates
+	seenNames := make(map[string]bool)
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Skip lines that are clearly UI elements
+		if len(line) < 5 {
+			continue
+		}
+
+		// Skip common UI text
+		lowerLine := strings.ToLower(line)
+		if strings.Contains(lowerLine, "ranking") ||
+			strings.Contains(lowerLine, "commander") ||
+			strings.Contains(lowerLine, "points") ||
+			strings.Contains(lowerLine, "daily") ||
+			strings.Contains(lowerLine, "weekly") ||
+			strings.Contains(lowerLine, "mon") ||
+			strings.Contains(lowerLine, "tues") ||
+			strings.Contains(lowerLine, "wed") ||
+			strings.Contains(lowerLine, "thur") ||
+			strings.Contains(lowerLine, "fri") ||
+			strings.Contains(lowerLine, "sat") ||
+			strings.Contains(lowerLine, "alliance") ||
+			strings.Contains(lowerLine, "your alliance") {
+			continue
+		}
+
+		// Try patterns
+		matches := rankPattern.FindStringSubmatch(line)
+		if len(matches) == 0 {
+			matches = simplePattern.FindStringSubmatch(line)
+		}
+
+		if len(matches) >= 3 {
+			name := strings.TrimSpace(matches[1])
+			pointsStr := strings.ReplaceAll(matches[2], ",", "")
+			pointsStr = strings.ReplaceAll(pointsStr, " ", "")
+
+			points, err := strconv.ParseInt(pointsStr, 10, 64)
+
+			// Validate: points should be realistic (10k to 999M range), name should be reasonable
+			if err == nil && points >= 10000 && points <= 999999999 &&
+				len(name) >= 3 && len(name) <= 30 && !seenNames[name] {
+				records = append(records, struct {
+					MemberName string `json:"member_name"`
+					Points     int64  `json:"points"`
+				}{
+					MemberName: name,
+					Points:     points,
+				})
+				seenNames[name] = true
+				log.Printf("Parsed VS points: %s -> %d", name, points)
+			}
+		}
+	}
+
+	return records
+}
+
+// HTTP handler to process VS points screenshot
+func processVSPointsScreenshot(w http.ResponseWriter, r *http.Request) {
+	var records []struct {
+		MemberName string `json:"member_name"`
+		Points     int64  `json:"points"`
+	}
+	var detectedDay string
+
+	// Check if this is a multipart form (image upload) or JSON (manual text)
+	contentType := r.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		// Handle image upload
+		err := r.ParseMultipartForm(10 << 20) // 10 MB max
+		if err != nil {
+			http.Error(w, "Failed to parse form", http.StatusBadRequest)
+			return
+		}
+
+		file, _, err := r.FormFile("image")
+		if err != nil {
+			http.Error(w, "No image file provided", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		imageData, err := io.ReadAll(file)
+		if err != nil {
+			http.Error(w, "Failed to read image", http.StatusInternalServerError)
+			return
+		}
+
+		detectedDay, records, err = extractVSPointsDataFromImage(imageData)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("OCR processing failed: %v", err), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		// Handle JSON (manual text or pre-parsed data)
+		var request struct {
+			Records []struct {
+				MemberName string `json:"member_name"`
+				Points     int64  `json:"points"`
+			} `json:"records"`
+			Text string `json:"text"` // Raw text to parse
+			Day  string `json:"day"`  // Optional: specify the day
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if request.Text != "" {
+			// Parse raw text
+			records = parseVSPointsText(request.Text)
+			detectedDay = detectSelectedDay(request.Text)
+		} else {
+			records = request.Records
+		}
+
+		// Use provided day if available, otherwise use detected day
+		if request.Day != "" {
+			detectedDay = strings.ToLower(request.Day)
+		}
+	}
+
+	if len(records) == 0 {
+		http.Error(w, "No valid VS point records found", http.StatusBadRequest)
+		return
+	}
+
+	if detectedDay == "" {
+		http.Error(w, "Could not determine which day these VS points are for. Please specify the day manually.", http.StatusBadRequest)
+		return
+	}
+
+	// Normalize day name
+	dayColumn := detectedDay
+	validDays := []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday"}
+	isValidDay := false
+	for _, d := range validDays {
+		if dayColumn == d {
+			isValidDay = true
+			break
+		}
+	}
+	if !isValidDay {
+		http.Error(w, fmt.Sprintf("Invalid day: %s. Must be monday-saturday", dayColumn), http.StatusBadRequest)
+		return
+	}
+
+	// Determine the week date (Monday of the current week)
+	now := time.Now()
+	weekday := now.Weekday()
+	daysFromMonday := int(weekday) - 1
+	if weekday == time.Sunday {
+		daysFromMonday = 6
+	}
+	monday := now.AddDate(0, 0, -daysFromMonday)
+	weekDate := monday.Format("2006-01-02")
+
+	// Start transaction
+	tx, err := db.Begin()
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	successCount := 0
+	notFoundMembers := []string{}
+	updatedMembers := []string{}
+
+	for _, record := range records {
+		// Try to find member by exact name match first
+		var memberID int
+		var memberName string
+		err := tx.QueryRow("SELECT id, name FROM members WHERE LOWER(name) = LOWER(?)", record.MemberName).Scan(&memberID, &memberName)
+
+		if err == sql.ErrNoRows {
+			// Try fuzzy matching
+			rows, err := tx.Query("SELECT id, name FROM members")
+			if err != nil {
+				continue
+			}
+
+			bestMatch := ""
+			bestScore := 0
+			bestID := 0
+
+			for rows.Next() {
+				var id int
+				var name string
+				if err := rows.Scan(&id, &name); err != nil {
+					continue
+				}
+
+				score := calculateSimilarity(record.MemberName, name)
+				if score > bestScore {
+					bestScore = score
+					bestMatch = name
+					bestID = id
+				}
+			}
+			rows.Close()
+
+			// Use fuzzy match if similarity is high enough (70%+)
+			if bestScore >= 70 {
+				memberID = bestID
+				memberName = bestMatch
+				log.Printf("Fuzzy matched '%s' to '%s' (similarity: %d%%)", record.MemberName, bestMatch, bestScore)
+			} else {
+				notFoundMembers = append(notFoundMembers, record.MemberName)
+				continue
+			}
+		}
+
+		// Upsert VS points for this member
+		var existingID int
+		err = tx.QueryRow("SELECT id FROM vs_points WHERE member_id = ? AND week_date = ?",
+			memberID, weekDate).Scan(&existingID)
+
+		if err == sql.ErrNoRows {
+			// Insert new record with the specific day's points
+			query := fmt.Sprintf(`
+				INSERT INTO vs_points (member_id, week_date, %s, updated_at)
+				VALUES (?, ?, ?, CURRENT_TIMESTAMP)`, dayColumn)
+			_, err = tx.Exec(query, memberID, weekDate, record.Points)
+		} else if err == nil {
+			// Update existing record with the specific day's points
+			query := fmt.Sprintf(`
+				UPDATE vs_points 
+				SET %s = ?, updated_at = CURRENT_TIMESTAMP
+				WHERE member_id = ? AND week_date = ?`, dayColumn)
+			_, err = tx.Exec(query, record.Points, memberID, weekDate)
+		}
+
+		if err != nil {
+			log.Printf("Failed to save VS points for %s: %v", memberName, err)
+			continue
+		}
+
+		successCount++
+		updatedMembers = append(updatedMembers, memberName)
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		http.Error(w, "Failed to save changes", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"message":         fmt.Sprintf("Successfully updated VS points for %d members on %s", successCount, detectedDay),
+		"day":             detectedDay,
+		"week_date":       weekDate,
+		"success_count":   successCount,
+		"updated_members": updatedMembers,
+	}
+
+	if len(notFoundMembers) > 0 {
+		response["not_found_members"] = notFoundMembers
+		response["warning"] = fmt.Sprintf("%d members could not be matched to the database", len(notFoundMembers))
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
 // Process screenshot data with OCR support
 func processPowerScreenshot(w http.ResponseWriter, r *http.Request) {
 	// Check if power tracking is enabled
@@ -4825,6 +5253,7 @@ func main() {
 	router.HandleFunc("/api/vs-points", authMiddleware(getVSPoints)).Methods("GET")
 	router.HandleFunc("/api/vs-points", authMiddleware(saveVSPoints)).Methods("POST")
 	router.HandleFunc("/api/vs-points/{week}", authMiddleware(deleteWeekVSPoints)).Methods("DELETE")
+	router.HandleFunc("/api/vs-points/process-screenshot", authMiddleware(processVSPointsScreenshot)).Methods("POST")
 
 	// Recommendations routes (protected)
 	router.HandleFunc("/api/recommendations", authMiddleware(getRecommendations)).Methods("GET")

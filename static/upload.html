@@ -315,9 +315,9 @@
                     <p style="margin: 0 0 10px 0; font-weight: bold; color: #667eea;">📋 Supported Screenshot Types:</p>
                     <ul style="margin: 0; padding-left: 20px; line-height: 1.8;">
                         <li><strong>⚡ Power Rankings</strong> - Track member power progression over time</li>
+                        <li><strong>⚔️ VS Points (Daily Rank)</strong> - Record daily VS points with automatic day detection</li>
                         <li><strong>🏆 Event Scores</strong> - Record weekly competition results</li>
                         <li><strong>📊 Statistics</strong> - Capture member performance data</li>
-                        <li><strong>📈 Other Data</strong> - Any text-based game screenshots</li>
                     </ul>
                 </div>
 
@@ -329,6 +329,18 @@
 
                 <!-- Image Upload Tab -->
                 <div id="tab-image" class="tab-content active">
+                    <!-- Screenshot Type Selector -->
+                    <div style="margin-bottom: 20px;">
+                        <label for="screenshot-type" style="display: block; margin-bottom: 8px; font-weight: bold; color: var(--text-primary);">Screenshot Type:</label>
+                        <select id="screenshot-type" class="form-input" style="width: 100%; max-width: 400px;">
+                            <option value="power">⚡ Power Rankings</option>
+                            <option value="vs-points">⚔️ VS Points (Daily Rank)</option>
+                        </select>
+                        <p id="screenshot-type-hint" class="help-text" style="margin-top: 8px;">
+                            Upload power ranking screenshots from the alliance member list.
+                        </p>
+                    </div>
+                    
                     <p class="help-text">Upload up to 25 screenshots at once. Our OCR system will automatically extract text data from each image.</p>
                     
                     <input type="file" id="image-input" accept="image/*" multiple style="display: none;">

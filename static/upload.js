@@ -236,28 +236,38 @@ processImageBtn.addEventListener('click', async () => {
         return;
     }
     
+    // Get selected screenshot type
+    const screenshotType = document.getElementById('screenshot-type').value;
+    
     const originalText = processImageBtn.innerHTML;
     processImageBtn.innerHTML = '<span class="loading"></span> Processing...';
     processImageBtn.disabled = true;
     
     try {
-        showResult(`🔍 Processing ${selectedFiles.length} image${selectedFiles.length > 1 ? 's' : ''} with OCR...`, 'info');
+        const typeLabel = screenshotType === 'power' ? 'Power Rankings' : 'VS Points';
+        showResult(`🔍 Processing ${selectedFiles.length} ${typeLabel} screenshot${selectedFiles.length > 1 ? 's' : ''} with OCR...`, 'info');
         
         let totalSuccess = 0;
         let totalFailed = 0;
         const allErrors = [];
+        const detectedDays = []; // For VS points
+        
+        // Determine API endpoint based on screenshot type
+        const apiEndpoint = screenshotType === 'power' 
+            ? `${API_BASE}/power-history/process-screenshot`
+            : `${API_BASE}/vs-points/process-screenshot`;
         
         // Process files sequentially to avoid overwhelming the server
         for (let i = 0; i < selectedFiles.length; i++) {
             const file = selectedFiles[i];
             
-            showResult(`🔍 Processing image ${i + 1} of ${selectedFiles.length}: ${file.name}...`, 'info');
+            showResult(`🔍 Processing ${typeLabel} screenshot ${i + 1} of ${selectedFiles.length}: ${file.name}...`, 'info');
             
             try {
                 const formData = new FormData();
                 formData.append('image', file);
                 
-                const response = await fetch(`${API_BASE}/power-history/process-screenshot`, {
+                const response = await fetch(apiEndpoint, {
                     method: 'POST',
                     body: formData
                 });
@@ -269,10 +279,17 @@ processImageBtn.addEventListener('click', async () => {
                 
                 const result = await response.json();
                 totalSuccess += result.success_count || 0;
-                totalFailed += result.failed_count || 0;
+                
+                // Track detected day for VS points
+                if (screenshotType === 'vs-points' && result.day) {
+                    detectedDays.push(`${file.name} → ${result.day}`);
+                }
                 
                 if (result.errors && result.errors.length > 0) {
                     allErrors.push(`<strong>${file.name}:</strong> ${result.errors.join(', ')}`);
+                    totalFailed++;
+                } else if (result.not_found_members && result.not_found_members.length > 0) {
+                    allErrors.push(`<strong>${file.name}:</strong> ${result.not_found_members.length} members not found in database`);
                 }
             } catch (error) {
                 console.error(`Error processing ${file.name}:`, error);
@@ -283,14 +300,23 @@ processImageBtn.addEventListener('click', async () => {
         
         // Show final results
         let html = `<div class="result-box result-success">
-            <strong>✅ Processed ${selectedFiles.length} image${selectedFiles.length > 1 ? 's' : ''}</strong><br>
+            <strong>✅ Processed ${selectedFiles.length} ${typeLabel} screenshot${selectedFiles.length > 1 ? 's' : ''}</strong><br>
             <div style="margin-top: 10px;">
-                <strong>Total Successful:</strong> ${totalSuccess} | 
-                <strong>Total Failed:</strong> ${totalFailed}
-            </div>`;
+                <strong>Total Records Updated:</strong> ${totalSuccess}`;
+                
+        if (totalFailed > 0) {
+            html += ` | <strong>Failed:</strong> ${totalFailed}`;
+        }
+        
+        html += `</div>`;
+        
+        // Show detected days for VS points
+        if (screenshotType === 'vs-points' && detectedDays.length > 0) {
+            html += `<br><br><strong>Detected Days:</strong><br><div style="max-height: 150px; overflow-y: auto; margin-top: 5px; font-size: 13px;">${detectedDays.join('<br>')}</div>`;
+        }
         
         if (allErrors.length > 0) {
-            html += `<br><br><strong>Errors:</strong><br><div style="max-height: 200px; overflow-y: auto; margin-top: 5px;">${allErrors.join('<br>')}</div>`;
+            html += `<br><br><strong>Issues:</strong><br><div style="max-height: 200px; overflow-y: auto; margin-top: 5px;">${allErrors.join('<br>')}</div>`;
         }
         
         html += '</div>';
@@ -302,7 +328,7 @@ processImageBtn.addEventListener('click', async () => {
                 selectedFiles = [];
                 imageInput.value = '';
                 updatePreview();
-            }, 3000);
+            }, 5000);
         }
     } catch (error) {
         console.error('Error processing images:', error);
@@ -418,6 +444,18 @@ function showResult(message, type) {
         `<div class="result-box ${resultClass}">${message}</div>`;
 }
 
+// Screenshot type selector handler
+function updateScreenshotTypeHint() {
+    const screenshotType = document.getElementById('screenshot-type').value;
+    const hintElement = document.getElementById('screenshot-type-hint');
+    
+    if (screenshotType === 'power') {
+        hintElement.textContent = 'Upload power ranking screenshots from the alliance member list.';
+    } else if (screenshotType === 'vs-points') {
+        hintElement.innerHTML = '<strong>⚔️ VS Points Instructions:</strong> Make sure to screenshot the "Daily Rank" tab. The system will automatically detect which day (Mon-Sat) is selected from the screenshot.';
+    }
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     const auth = await checkAuth();
@@ -425,16 +463,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     await setupEventListeners();
     
+    // Setup screenshot type selector
+    const screenshotTypeSelector = document.getElementById('screenshot-type');
+    if (screenshotTypeSelector) {
+        screenshotTypeSelector.addEventListener('change', updateScreenshotTypeHint);
+        updateScreenshotTypeHint(); // Set initial hint
+    }
+    
     // Check if power tracking is enabled
     try {
         const response = await fetch(`${API_BASE}/settings`);
         if (response.ok) {
             const settings = await response.json();
             if (!settings.power_tracking_enabled) {
-                showResult('⚠️ Power tracking is not enabled. Please enable it in Settings first.', 'error');
-                document.querySelectorAll('.btn').forEach(btn => btn.disabled = true);
-                dropZone.style.pointerEvents = 'none';
-                dropZone.style.opacity = '0.5';
+                showResult('⚠️ Power tracking is not enabled. Some features may be limited. Please enable it in Settings.', 'info');
             }
         }
     } catch (error) {
