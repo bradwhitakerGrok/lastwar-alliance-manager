@@ -4599,11 +4599,114 @@ func calculateSimilarity(s1, s2 string) int {
 	return similarity
 }
 
+// Extract just the day tab region and run OCR on it
+func detectDayFromTabRegion(imageData []byte) string {
+	// Decode the image
+	img, format, err := image.Decode(bytes.NewReader(imageData))
+	if err != nil {
+		log.Printf("Failed to decode image for tab detection: %v", err)
+		return ""
+	}
+	log.Printf("Image format for tab detection: %s, bounds: %v", format, img.Bounds())
+
+	bounds := img.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+
+	// The tab region is approximately at y=220-290 pixels from the top
+	// Adjust based on image size
+	tabTop := int(float64(height) * 0.08)     // ~8% from top
+	tabBottom := int(float64(height) * 0.105) // ~10.5% from top
+
+	// Ensure we don't go out of bounds
+	if tabTop < 0 {
+		tabTop = 0
+	}
+	if tabBottom > height {
+		tabBottom = height
+	}
+	if tabBottom <= tabTop {
+		tabBottom = tabTop + 100 // minimum 100px height
+	}
+
+	log.Printf("Extracting tab region: y=%d to y=%d (full image: %dx%d)", tabTop, tabBottom, width, height)
+
+	// Create a new image with just the tab region
+	tabRegion := image.NewRGBA(image.Rect(0, 0, width, tabBottom-tabTop))
+	draw.Draw(tabRegion, tabRegion.Bounds(), img, image.Point{0, tabTop}, draw.Src)
+
+	// Convert to PNG bytes
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, tabRegion); err != nil {
+		log.Printf("Failed to encode tab region: %v", err)
+		return ""
+	}
+
+	// Preprocess the tab region for better OCR
+	processedData, err := preprocessImageForOCR(buf.Bytes())
+	if err != nil {
+		log.Printf("Warning: Tab region preprocessing failed: %v. Using original.", err)
+		processedData = buf.Bytes()
+	}
+
+	// Run OCR on the tab region
+	client := gosseract.NewClient()
+	defer client.Close()
+
+	if err := client.SetImageFromBytes(processedData); err != nil {
+		log.Printf("Failed to load tab region for OCR: %v", err)
+		return ""
+	}
+
+	client.SetPageSegMode(gosseract.PSM_SINGLE_LINE)
+	text, err := client.Text()
+	if err != nil || len(strings.TrimSpace(text)) == 0 {
+		log.Printf("Tab region OCR failed or empty")
+		return ""
+	}
+
+	log.Printf("Tab region OCR text: %s", text)
+
+	// Look for day names in the tab text
+	textLower := strings.ToLower(text)
+	days := []struct {
+		name     string
+		patterns []string
+	}{
+		{"monday", []string{"monday", "mon.", "mon"}},
+		{"tuesday", []string{"tuesday", "tues.", "tues", "tue"}},
+		{"wednesday", []string{"wednesday", "wed.", "wed"}},
+		{"thursday", []string{"thursday", "thur.", "thur", "thu"}},
+		{"friday", []string{"friday", "fri.", "fri"}},
+		{"saturday", []string{"saturday", "sat.", "sat"}},
+	}
+
+	// Find which day patterns appear in the text
+	// The selected tab usually appears first or more prominently
+	for _, day := range days {
+		for _, pattern := range day.patterns {
+			if strings.Contains(textLower, pattern) {
+				// Check if this appears early in the text (likely the selected/highlighted tab)
+				idx := strings.Index(textLower, pattern)
+				if idx < 100 { // Within first 100 chars suggests it's prominent
+					log.Printf("Detected day '%s' from tab region (pattern: '%s' at position %d)", day.name, pattern, idx)
+					return day.name
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
 // Extract VS points data from image and detect which day
 func extractVSPointsDataFromImage(imageData []byte) (day string, records []struct {
 	MemberName string `json:"member_name"`
 	Points     int64  `json:"points"`
 }, error error) {
+	// First try to detect the day from the tab region specifically
+	detectedDay := detectDayFromTabRegion(imageData)
+
 	// Preprocess image to filter and enhance relevant regions
 	processedData, err := preprocessImageForOCR(imageData)
 	if err != nil {
@@ -4645,10 +4748,33 @@ func extractVSPointsDataFromImage(imageData []byte) (day string, records []struc
 	// Log the extracted text for debugging
 	log.Printf("OCR extracted text:\n%s\n---END OCR---", text)
 
-	// Detect which day is selected by looking for day names in the text
-	detectedDay := detectSelectedDay(text)
+	// If we didn't detect day from tab region, try text-based detection as fallback
 	if detectedDay == "" {
-		return "", nil, fmt.Errorf("could not detect which day is selected (Mon-Sat). Make sure the screenshot shows the Daily Rank tab")
+		detectedDay = detectSelectedDay(text)
+	}
+
+	// If still no detection, use current system day as last resort
+	if detectedDay == "" {
+		now := time.Now()
+		weekday := now.Weekday()
+		switch weekday {
+		case time.Monday:
+			detectedDay = "monday"
+		case time.Tuesday:
+			detectedDay = "tuesday"
+		case time.Wednesday:
+			detectedDay = "wednesday"
+		case time.Thursday:
+			detectedDay = "thursday"
+		case time.Friday:
+			detectedDay = "friday"
+		case time.Saturday:
+			detectedDay = "saturday"
+		default:
+			// Sunday - default to Monday
+			detectedDay = "monday"
+		}
+		log.Printf("Warning: Could not detect day from screenshot, using current system day: %s", detectedDay)
 	}
 
 	// Parse the OCR text for VS points
@@ -4690,7 +4816,7 @@ func detectSelectedDay(text string) string {
 			dayScores[standardDay] += count
 
 			// Higher weight if it appears near the beginning (likely the tab)
-			if strings.Index(textLower, variant) < 200 {
+			if idx := strings.Index(textLower, variant); idx >= 0 && idx < 200 {
 				dayScores[standardDay] += 2
 			}
 		}
@@ -4706,34 +4832,17 @@ func detectSelectedDay(text string) string {
 		}
 	}
 
-	// If we couldn't conclusively determine the day, try to infer from current date
-	if maxScore == 0 || maxScore < 2 {
-		// Use current day of week as fallback
-		now := time.Now()
-		weekday := now.Weekday()
-		switch weekday {
-		case time.Monday:
-			selectedDay = "monday"
-		case time.Tuesday:
-			selectedDay = "tuesday"
-		case time.Wednesday:
-			selectedDay = "wednesday"
-		case time.Thursday:
-			selectedDay = "thursday"
-		case time.Friday:
-			selectedDay = "friday"
-		case time.Saturday:
-			selectedDay = "saturday"
-		default:
-			// Sunday - default to Monday
-			selectedDay = "monday"
-		}
-		log.Printf("Could not detect day from OCR, using current day: %s", selectedDay)
-	} else {
-		log.Printf("Detected day from OCR: %s (score: %d)", selectedDay, maxScore)
+	// Only return if we have strong confidence (score >= 3)
+	if maxScore >= 3 {
+		log.Printf("Detected day from full OCR text: %s (score: %d)", selectedDay, maxScore)
+		return selectedDay
 	}
 
-	return selectedDay
+	// Low confidence or no detection
+	if maxScore > 0 {
+		log.Printf("Low confidence day detection from OCR: %s (score: %d)", selectedDay, maxScore)
+	}
+	return ""
 }
 
 // Parse VS points text(from OCR or manual input)
