@@ -248,6 +248,26 @@ type ConfirmResult struct {
 	Removed   int `json:"removed"`
 }
 
+type VSPoints struct {
+	ID        int    `json:"id"`
+	MemberID  int    `json:"member_id"`
+	WeekDate  string `json:"week_date"`
+	Monday    int    `json:"monday"`
+	Tuesday   int    `json:"tuesday"`
+	Wednesday int    `json:"wednesday"`
+	Thursday  int    `json:"thursday"`
+	Friday    int    `json:"friday"`
+	Saturday  int    `json:"saturday"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+type VSPointsWithMember struct {
+	VSPoints
+	MemberName string `json:"member_name"`
+	MemberRank string `json:"member_rank"`
+}
+
 var db *sql.DB
 var store *sessions.CookieStore
 
@@ -927,6 +947,34 @@ func initDB() error {
 
 	// Create index for faster login history queries
 	_, err = db.Exec("CREATE INDEX IF NOT EXISTS idx_login_sessions_user ON login_sessions(user_id, login_time DESC)")
+	if err != nil {
+		return err
+	}
+
+	// Create vs_points table for tracking VS points Monday-Saturday
+	createVSPointsSQL := `CREATE TABLE IF NOT EXISTS vs_points (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		member_id INTEGER NOT NULL,
+		week_date TEXT NOT NULL,
+		monday INTEGER NOT NULL DEFAULT 0,
+		tuesday INTEGER NOT NULL DEFAULT 0,
+		wednesday INTEGER NOT NULL DEFAULT 0,
+		thursday INTEGER NOT NULL DEFAULT 0,
+		friday INTEGER NOT NULL DEFAULT 0,
+		saturday INTEGER NOT NULL DEFAULT 0,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+		UNIQUE(member_id, week_date)
+	);`
+
+	_, err = db.Exec(createVSPointsSQL)
+	if err != nil {
+		return err
+	}
+
+	// Create index for faster VS points queries
+	_, err = db.Exec("CREATE INDEX IF NOT EXISTS idx_vs_points_week ON vs_points(week_date)")
 	if err != nil {
 		return err
 	}
@@ -2644,6 +2692,142 @@ func deleteWeekAwards(w http.ResponseWriter, r *http.Request) {
 	weekDate := vars["week"]
 
 	_, err := db.Exec("DELETE FROM awards WHERE week_date = ?", weekDate)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Get VS points for a week or all weeks
+func getVSPoints(w http.ResponseWriter, r *http.Request) {
+	weekDate := r.URL.Query().Get("week")
+
+	var query string
+	var rows *sql.Rows
+	var err error
+
+	if weekDate != "" {
+		query = `
+			SELECT v.id, v.member_id, v.week_date, v.monday, v.tuesday, v.wednesday, 
+			       v.thursday, v.friday, v.saturday, v.created_at, v.updated_at,
+			       m.name, m.rank
+			FROM vs_points v
+			JOIN members m ON v.member_id = m.id
+			WHERE v.week_date = ?
+			ORDER BY m.name
+		`
+		rows, err = db.Query(query, weekDate)
+	} else {
+		query = `
+			SELECT v.id, v.member_id, v.week_date, v.monday, v.tuesday, v.wednesday, 
+			       v.thursday, v.friday, v.saturday, v.created_at, v.updated_at,
+			       m.name, m.rank
+			FROM vs_points v
+			JOIN members m ON v.member_id = m.id
+			ORDER BY v.week_date DESC, m.name
+		`
+		rows, err = db.Query(query)
+	}
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	vsPoints := []VSPointsWithMember{}
+	for rows.Next() {
+		var v VSPointsWithMember
+		if err := rows.Scan(&v.ID, &v.MemberID, &v.WeekDate, &v.Monday, &v.Tuesday,
+			&v.Wednesday, &v.Thursday, &v.Friday, &v.Saturday, &v.CreatedAt, &v.UpdatedAt,
+			&v.MemberName, &v.MemberRank); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		vsPoints = append(vsPoints, v)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(vsPoints)
+}
+
+// Save VS points for a week (bulk operation)
+func saveVSPoints(w http.ResponseWriter, r *http.Request) {
+	var data struct {
+		WeekDate string `json:"week_date"`
+		Points   []struct {
+			MemberID  int `json:"member_id"`
+			Monday    int `json:"monday"`
+			Tuesday   int `json:"tuesday"`
+			Wednesday int `json:"wednesday"`
+			Thursday  int `json:"thursday"`
+			Friday    int `json:"friday"`
+			Saturday  int `json:"saturday"`
+		} `json:"points"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Begin transaction
+	tx, err := db.Begin()
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	// Upsert VS points for each member
+	for _, point := range data.Points {
+		// Check if record exists
+		var existingID int
+		err = tx.QueryRow("SELECT id FROM vs_points WHERE member_id = ? AND week_date = ?",
+			point.MemberID, data.WeekDate).Scan(&existingID)
+
+		if err == sql.ErrNoRows {
+			// Insert new record
+			_, err = tx.Exec(`
+				INSERT INTO vs_points (member_id, week_date, monday, tuesday, wednesday, thursday, friday, saturday, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+				point.MemberID, data.WeekDate, point.Monday, point.Tuesday, point.Wednesday,
+				point.Thursday, point.Friday, point.Saturday)
+		} else if err == nil {
+			// Update existing record
+			_, err = tx.Exec(`
+				UPDATE vs_points 
+				SET monday = ?, tuesday = ?, wednesday = ?, thursday = ?, friday = ?, saturday = ?, updated_at = CURRENT_TIMESTAMP
+				WHERE member_id = ? AND week_date = ?`,
+				point.Monday, point.Tuesday, point.Wednesday, point.Thursday, point.Friday, point.Saturday,
+				point.MemberID, data.WeekDate)
+		}
+
+		if err != nil {
+			tx.Rollback()
+			http.Error(w, "Failed to save VS points", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Commit transaction
+	err = tx.Commit()
+	if err != nil {
+		http.Error(w, "Failed to save changes", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "VS points saved successfully"})
+}
+
+// Delete VS points for a specific week
+func deleteWeekVSPoints(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	weekDate := vars["week"]
+
+	_, err := db.Exec("DELETE FROM vs_points WHERE week_date = ?", weekDate)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -4636,6 +4820,11 @@ func main() {
 	router.HandleFunc("/api/award-types", authMiddleware(createAwardType)).Methods("POST")
 	router.HandleFunc("/api/award-types/{id}", authMiddleware(updateAwardType)).Methods("PUT")
 	router.HandleFunc("/api/award-types/{id}", authMiddleware(deleteAwardType)).Methods("DELETE")
+
+	// VS points routes (protected)
+	router.HandleFunc("/api/vs-points", authMiddleware(getVSPoints)).Methods("GET")
+	router.HandleFunc("/api/vs-points", authMiddleware(saveVSPoints)).Methods("POST")
+	router.HandleFunc("/api/vs-points/{week}", authMiddleware(deleteWeekVSPoints)).Methods("DELETE")
 
 	// Recommendations routes (protected)
 	router.HandleFunc("/api/recommendations", authMiddleware(getRecommendations)).Methods("GET")

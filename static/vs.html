@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VS Points - Last War Alliance</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .vs-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--card-bg);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .vs-table th {
+            background: var(--primary-color);
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .vs-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .vs-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .vs-table tr:hover {
+            background: var(--hover-bg);
+        }
+
+        .vs-input {
+            width: 70px;
+            padding: 6px 8px;
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .vs-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .member-name {
+            font-weight: 600;
+        }
+
+        .member-rank {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+            margin-left: 8px;
+        }
+
+        .total-column {
+            font-weight: bold;
+            color: var(--primary-color);
+            font-size: 1.1em;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .week-selector {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .week-nav-btn {
+            padding: 10px 20px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .week-nav-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        .week-info h3 {
+            margin: 0;
+            color: var(--text-primary);
+        }
+
+        .week-subtitle {
+            margin: 5px 0 0 0;
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .save-btn {
+            padding: 10px 20px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .save-btn:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+
+        .clear-btn {
+            padding: 10px 20px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .clear-btn:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+        }
+
+        .search-box {
+            width: 100%;
+            max-width: 300px;
+            padding: 10px 15px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        @media (max-width: 768px) {
+            .vs-input {
+                width: 50px;
+                padding: 4px 6px;
+                font-size: 12px;
+            }
+
+            .vs-table th,
+            .vs-table td {
+                padding: 8px 6px;
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚔️ Last War: Survival</h1>
+            <h2>VS Points Tracking</h2>
+            <div class="user-info">
+                <div class="user-dropdown">
+                    <button id="username-display" class="username-btn"></button>
+                    <div id="user-dropdown-menu" class="dropdown-menu">
+                        <a href="/profile.html" class="dropdown-item">👤 Profile</a>
+                        <a href="/admin.html" class="dropdown-item admin-only" id="admin-dropdown-link" style="display: none;">🔐 Admin Panel</a>
+                        <div class="dropdown-divider"></div>
+                        <div class="theme-section">
+                            <div class="theme-section-label">Theme</div>
+                            <a href="#" class="dropdown-item theme-option" data-theme="auto">● Auto (System)</a>
+                            <a href="#" class="dropdown-item theme-option" data-theme="light">○ Light</a>
+                            <a href="#" class="dropdown-item theme-option" data-theme="dark">○ Dark</a>
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" class="dropdown-item" id="dropdown-logout-btn">🚪 Logout</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <nav class="nav-menu">
+            <a href="/" class="nav-link">👥 Members</a>
+            <a href="/train.html" class="nav-link">🚂 Train</a>
+            <a href="/awards.html" class="nav-link">🏆 Awards</a>
+            <a href="/recommendations.html" class="nav-link">⭐ Recs</a>
+            <a href="/rankings.html" class="nav-link">📊 Rankings</a>
+            <a href="/storm.html" class="nav-link">🏜️ Storm</a>
+            <a href="/vs.html" class="nav-link active">⚔️ VS Points</a>
+            <a href="/upload.html" class="nav-link">📸 Upload</a>
+            <a href="/settings.html" class="nav-link">⚙️ Settings</a>
+        </nav>
+
+        <main>
+            <section class="controls">
+                <div class="week-selector">
+                    <button id="prev-week" class="week-nav-btn">← Previous Week</button>
+                    <div class="week-info">
+                        <h3 id="week-display">Week of January 7, 2025</h3>
+                        <p class="week-subtitle">Monday - Saturday VS Points</p>
+                    </div>
+                    <button id="next-week" class="week-nav-btn">Next Week →</button>
+                </div>
+                <div class="action-buttons">
+                    <button id="save-btn" class="save-btn">💾 Save Points</button>
+                    <button id="clear-btn" class="clear-btn">🗑️ Clear Week</button>
+                </div>
+            </section>
+
+            <section>
+                <input type="text" id="search-box" class="search-box" placeholder="🔍 Search member...">
+            </section>
+
+            <section class="table-wrapper">
+                <table class="vs-table" id="vs-table">
+                    <thead>
+                        <tr>
+                            <th>Member</th>
+                            <th>Monday</th>
+                            <th>Tuesday</th>
+                            <th>Wednesday</th>
+                            <th>Thursday</th>
+                            <th>Friday</th>
+                            <th>Saturday</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vs-tbody">
+                        <tr>
+                            <td colspan="8" style="text-align: center; padding: 20px;">Loading members...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+        </main>
+    </div>
+
+    <script src="theme.js"></script>
+    <script src="vs.js"></script>
+</body>
+</html>
