@@ -4599,7 +4599,71 @@ func calculateSimilarity(s1, s2 string) int {
 	return similarity
 }
 
-// Extract just the day tab region and run OCR on it
+// Detect selected day tab by color (orange indicates selected tab)
+func detectDayByColor(img image.Image) string {
+	bounds := img.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+
+	// Days are arranged horizontally: Mon, Tues, Wed, Thur, Fri, Sat
+	days := []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday"}
+	tabWidth := width / 6 // Each tab takes ~1/6 of the width
+
+	// Count orange pixels in each tab region
+	orangeCounts := make([]int, 6)
+
+	for dayIdx := 0; dayIdx < 6; dayIdx++ {
+		// Define the region for this day tab
+		startX := dayIdx * tabWidth
+		endX := startX + tabWidth
+		if dayIdx == 5 {
+			endX = width // Last tab goes to the end
+		}
+
+		// Count orange/yellow pixels in this region
+		orangeCount := 0
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := startX; x < endX; x++ {
+				r, g, b, _ := img.At(x, y).RGBA()
+				// Convert from 16-bit to 8-bit color
+				r8, g8, b8 := uint8(r>>8), uint8(g>>8), uint8(b>>8)
+
+				// Orange/yellow detection: High red, medium-high green, low blue
+				// Selected tab has orange color (approximately RGB: 240-255, 140-180, 0-50)
+				if r8 > 200 && g8 > 100 && g8 < 200 && b8 < 100 {
+					orangeCount++
+				}
+			}
+		}
+		orangeCounts[dayIdx] = orangeCount
+	}
+
+	// Find the day with the most orange pixels
+	maxOrange := 0
+	selectedDay := -1
+	for i, count := range orangeCounts {
+		if count > maxOrange {
+			maxOrange = count
+			selectedDay = i
+		}
+	}
+
+	// Require a minimum threshold to avoid false positives
+	minThreshold := 50 // At least 50 orange pixels
+	if selectedDay >= 0 && maxOrange > minThreshold {
+		log.Printf("Day detected by color: %s (orange pixel count: %d)", days[selectedDay], maxOrange)
+		log.Printf("Color counts per day: Mon=%d, Tue=%d, Wed=%d, Thu=%d, Fri=%d, Sat=%d",
+			orangeCounts[0], orangeCounts[1], orangeCounts[2], orangeCounts[3], orangeCounts[4], orangeCounts[5])
+		return days[selectedDay]
+	}
+
+	log.Printf("Color detection failed: max orange count %d below threshold %d", maxOrange, minThreshold)
+	log.Printf("Color counts per day: Mon=%d, Tue=%d, Wed=%d, Thu=%d, Fri=%d, Sat=%d",
+		orangeCounts[0], orangeCounts[1], orangeCounts[2], orangeCounts[3], orangeCounts[4], orangeCounts[5])
+	return ""
+}
+
+// Extract just the day tab region and detect selected day by color
 func detectDayFromTabRegion(imageData []byte) string {
 	// Decode the image
 	img, format, err := image.Decode(bytes.NewReader(imageData))
@@ -4634,6 +4698,16 @@ func detectDayFromTabRegion(imageData []byte) string {
 	// Create a new image with just the tab region
 	tabRegion := image.NewRGBA(image.Rect(0, 0, width, tabBottom-tabTop))
 	draw.Draw(tabRegion, tabRegion.Bounds(), img, image.Point{0, tabTop}, draw.Src)
+
+	// First try: Detect by color (most reliable for this UI)
+	dayByColor := detectDayByColor(tabRegion)
+	if dayByColor != "" {
+		return dayByColor
+	}
+
+	log.Printf("Color detection failed, falling back to OCR")
+
+	// Fallback: Try OCR detection
 
 	// Simple preprocessing for tab region: scale 2x and convert to grayscale
 	// Don't use preprocessImageForOCR() as it tries to detect data regions (fails on small images)
