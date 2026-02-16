@@ -4653,12 +4653,28 @@ func detectDayByColor(img image.Image) string {
 	}
 
 	// Find the day with the most orange pixels
+	// If multiple days are close (within 10%), prefer the leftmost (earliest day)
 	maxOrange := 0
 	selectedDay := -1
 	for i, count := range orangeCounts {
 		if count > maxOrange {
 			maxOrange = count
 			selectedDay = i
+		}
+	}
+
+	// Check for very close competitors (within 10% of max)
+	// If found, prefer the leftmost tab
+	if maxOrange > 0 {
+		threshold := float64(maxOrange) * 0.10
+		for i := 0; i < selectedDay; i++ {
+			if float64(maxOrange-orangeCounts[i]) <= threshold && orangeCounts[i] > 0 {
+				// Found an earlier day with similar orange count, prefer it
+				selectedDay = i
+				maxOrange = orangeCounts[i]
+				log.Printf("Multiple tabs have similar orange counts, preferring leftmost tab")
+				break
+			}
 		}
 	}
 
