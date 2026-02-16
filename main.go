@@ -4800,54 +4800,36 @@ func extractVSPointsDataFromImage(imageData []byte) (day string, records []struc
 	// First try to detect the day from the tab region specifically
 	detectedDay := detectDayFromTabRegion(imageData)
 
-	// Preprocess image to filter and enhance relevant regions
-	processedData, err := preprocessImageForOCR(imageData)
+	// If day detection failed, try text-based detection
+	if detectedDay == "" {
+		log.Printf("Tab region day detection failed, will try OCR fallback")
+	}
+
+	// Decode image for row segmentation
+	img, _, err := image.Decode(bytes.NewReader(imageData))
 	if err != nil {
-		log.Printf("Warning: Image preprocessing failed: %v. Using original image.", err)
-		processedData = imageData // Fallback to original
+		return "", nil, fmt.Errorf("failed to decode image: %v", err)
 	}
 
-	client := gosseract.NewClient()
-	defer client.Close()
-
-	err = client.SetImageFromBytes(processedData)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to load image: %v", err)
-	}
-
-	// Try different PSM modes for better recognition
-	var text string
-	psmModes := []gosseract.PageSegMode{
-		gosseract.PSM_AUTO,
-		gosseract.PSM_SINGLE_BLOCK,
-		gosseract.PSM_SPARSE_TEXT,
-	}
-
-	for i, mode := range psmModes {
-		client.SetPageSegMode(mode)
-		extractedText, err := client.Text()
-		if err == nil && len(strings.TrimSpace(extractedText)) > 0 {
-			text = extractedText
-			log.Printf("OCR successful with PSM mode %d (attempt %d)", mode, i+1)
-			break
+	// Analyze screenshot to get regions
+	attrs := analyzeScreenshot(img)
+	
+	// Try segmented OCR approach: extract and process individual rows
+	log.Printf("Attempting row-by-row segmented OCR...")
+	records, err = extractVSPointsByRows(img, attrs)
+	
+	if err != nil || len(records) == 0 {
+		log.Printf("Segmented OCR failed (%v), falling back to full image OCR", err)
+		// Fallback to original full-image OCR approach
+		records, err = extractVSPointsFullImage(imageData, attrs)
+		if err != nil {
+			return detectedDay, nil, err
 		}
-		log.Printf("OCR attempt %d with PSM mode %d failed or empty", i+1, mode)
 	}
-
-	if len(strings.TrimSpace(text)) == 0 {
-		return "", nil, fmt.Errorf("OCR failed: no text extracted after trying multiple modes")
-	}
-
-	// Log the extracted text for debugging
-	log.Printf("OCR extracted text:\n%s\n---END OCR---", text)
 
 	// If we didn't detect day from tab region, try text-based detection as fallback
 	if detectedDay == "" {
-		detectedDay = detectSelectedDay(text)
-	}
-
-	// If still no detection, use current system day as last resort
-	if detectedDay == "" {
+		// Use current system day as last resort
 		now := time.Now()
 		weekday := now.Weekday()
 		switch weekday {
@@ -4870,14 +4852,213 @@ func extractVSPointsDataFromImage(imageData []byte) (day string, records []struc
 		log.Printf("Warning: Could not detect day from screenshot, using current system day: %s", detectedDay)
 	}
 
-	// Parse the OCR text for VS points
-	records = parseVSPointsText(text)
-
 	if len(records) == 0 {
-		return "", nil, fmt.Errorf("no valid VS point records found in extracted text (see server logs for OCR output)")
+		return "", nil, fmt.Errorf("no valid VS point records found in extracted text")
 	}
 
 	return detectedDay, records, nil
+}
+
+// Extract VS points by segmenting image into rows and OCR each row independently
+func extractVSPointsByRows(img image.Image, attrs *ScreenshotAttributes) ([]struct {
+	MemberName string `json:"member_name"`
+	Points     int64  `json:"points"`
+}, error) {
+	bounds := img.Bounds()
+	dataRegion := attrs.DataRegion
+	rowHeight := attrs.RowHeight
+	estimatedRows := attrs.EstimatedRows
+
+	if estimatedRows < 1 {
+		estimatedRows = 10
+	}
+
+	records := []struct {
+		MemberName string `json:"member_name"`
+		Points     int64  `json:"points"`
+	}{}
+
+	log.Printf("Processing %d estimated rows with height %d", estimatedRows, rowHeight)
+
+	// Extract and OCR each row
+	for i := 0; i < estimatedRows; i++ {
+		rowTop := dataRegion.Top + (i * rowHeight)
+		rowBottom := rowTop + rowHeight
+
+		// Ensure we don't go out of bounds
+		if rowBottom > dataRegion.Bottom {
+			rowBottom = dataRegion.Bottom
+		}
+		if rowTop >= rowBottom {
+			break
+		}
+
+		// Extract this row as a separate image
+		rowImg := image.NewRGBA(image.Rect(0, 0, bounds.Dx(), rowBottom-rowTop))
+		draw.Draw(rowImg, rowImg.Bounds(), img, image.Point{0, rowTop}, draw.Src)
+
+		// Process this row
+		// Split row into segments: rank (15%), name (50%), points (35%)
+		rankWidth := bounds.Dx() * 15 / 100
+		nameStart := rankWidth
+		nameWidth := bounds.Dx() * 50 / 100
+		pointsStart := nameStart + nameWidth
+
+		// Extract name segment
+		nameImg := image.NewRGBA(image.Rect(0, 0, nameWidth, rowBottom-rowTop))
+		draw.Draw(nameImg, nameImg.Bounds(), rowImg, image.Point{nameStart, 0}, draw.Src)
+
+		// Extract points segment
+		pointsWidth := bounds.Dx() - pointsStart
+		pointsImg := image.NewRGBA(image.Rect(0, 0, pointsWidth, rowBottom-rowTop))
+		draw.Draw(pointsImg, pointsImg.Bounds(), rowImg, image.Point{pointsStart, 0}, draw.Src)
+
+		// Scale 2x and convert to grayscale for better OCR
+		scaledName := scaleImage(nameImg, 2)
+		grayName := convertToGrayscale(scaledName)
+
+		scaledPoints := scaleImage(pointsImg, 2)
+		grayPoints := convertToGrayscale(scaledPoints)
+
+		// OCR the name segment
+		var nameBuf bytes.Buffer
+		if err := png.Encode(&nameBuf, grayName); err != nil {
+			log.Printf("Row %d: Failed to encode name segment: %v", i+1, err)
+			continue
+		}
+
+		nameClient := gosseract.NewClient()
+		defer nameClient.Close()
+		nameClient.SetImageFromBytes(nameBuf.Bytes())
+		nameClient.SetPageSegMode(gosseract.PSM_SINGLE_LINE)
+		nameText, err := nameClient.Text()
+		if err != nil || len(strings.TrimSpace(nameText)) == 0 {
+			continue // Skip empty rows
+		}
+
+		// OCR the points segment
+		var pointsBuf bytes.Buffer
+		if err := png.Encode(&pointsBuf, grayPoints); err != nil {
+			log.Printf("Row %d: Failed to encode points segment: %v", i+1, err)
+			continue
+		}
+
+		pointsClient := gosseract.NewClient()
+		defer pointsClient.Close()
+		pointsClient.SetImageFromBytes(pointsBuf.Bytes())
+		pointsClient.SetPageSegMode(gosseract.PSM_SINGLE_LINE)
+		pointsText, err := pointsClient.Text()
+		if err != nil || len(strings.TrimSpace(pointsText)) == 0 {
+			log.Printf("Row %d: Name='%s', but no points found", i+1, strings.TrimSpace(nameText))
+			continue
+		}
+
+		// Parse the extracted text
+		name := strings.TrimSpace(nameText)
+		// Clean up name (remove alliance tags, rank numbers, etc.)
+		name = cleanPlayerName(name)
+
+		// Parse points
+		pointsStr := strings.TrimSpace(pointsText)
+		pointsStr = strings.ReplaceAll(pointsStr, ",", "")
+		pointsStr = strings.ReplaceAll(pointsStr, ".", "")
+		pointsStr = strings.ReplaceAll(pointsStr, " ", "")
+		
+		points, err := strconv.ParseInt(pointsStr, 10, 64)
+		if err != nil {
+			log.Printf("Row %d: Failed to parse points '%s': %v", i+1, pointsStr, err)
+			continue
+		}
+
+		if points < 100 { // Sanity check
+			continue
+		}
+
+		log.Printf("Row %d: Name='%s', Points=%d", i+1, name, points)
+
+		records = append(records, struct {
+			MemberName string `json:"member_name"`
+			Points     int64  `json:"points"`
+		}{
+			MemberName: name,
+			Points:     points,
+		})
+	}
+
+	return records, nil
+}
+
+// Fallback: Extract VS points from full image (original method)
+func extractVSPointsFullImage(imageData []byte, attrs *ScreenshotAttributes) ([]struct {
+	MemberName string `json:"member_name"`
+	Points     int64  `json:"points"`
+}, error) {
+	// Preprocess image to filter and enhance relevant regions
+	processedData, err := preprocessImageForOCR(imageData)
+	if err != nil {
+		log.Printf("Warning: Image preprocessing failed: %v. Using original image.", err)
+		processedData = imageData // Fallback to original
+	}
+
+	client := gosseract.NewClient()
+	defer client.Close()
+
+	err = client.SetImageFromBytes(processedData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load image: %v", err)
+	}
+
+	// Try different PSM modes for better recognition
+	var text string
+	psmModes := []gosseract.PageSegMode{
+		gosseract.PSM_AUTO,
+		gosseract.PSM_SINGLE_BLOCK,
+		gosseract.PSM_SPARSE_TEXT,
+	}
+
+	for i, mode := range psmModes {
+		client.SetPageSegMode(mode)
+		extractedText, err := client.Text()
+		if err == nil && len(strings.TrimSpace(extractedText)) > 0 {
+			text = extractedText
+			log.Printf("OCR successful with PSM mode %d (attempt %d)", mode, i+1)
+			break
+		}
+		log.Printf("OCR attempt %d with PSM mode %d failed or empty", i+1, mode)
+	}
+
+	if len(strings.TrimSpace(text)) == 0 {
+		return nil, fmt.Errorf("OCR failed: no text extracted after trying multiple modes")
+	}
+
+	// Log the extracted text for debugging
+	log.Printf("OCR extracted text:\n%s\n---END OCR---", text)
+
+	// Parse the OCR text for VS points
+	records := parseVSPointsText(text)
+
+	return records, nil
+}
+
+// Clean player name by removing alliance tags, special characters, etc
+func cleanPlayerName(name string) string {
+	// Remove common OCR artifacts
+	name = strings.ReplaceAll(name, "|", "I")
+	name = strings.ReplaceAll(name, "~", "")
+	name = strings.ReplaceAll(name, "`", "")
+	
+	// Remove alliance tags like [NTMs], (NTMs), etc.
+	re := regexp.MustCompile(`\[.*?\]|\(.*?\)`)
+	name = re.ReplaceAllString(name, "")
+	
+	// Remove rank numbers at the start (1), (2), etc.
+	re = regexp.MustCompile(`^\d+\)?\s*`)
+	name = re.ReplaceAllString(name, "")
+	
+	// Clean up whitespace
+	name = strings.TrimSpace(name)
+	
+	return name
 }
 
 // Detect which day is selected from OCR text
