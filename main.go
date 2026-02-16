@@ -4619,10 +4619,25 @@ func detectDayByColor(img image.Image) string {
 			endX = width // Last tab goes to the end
 		}
 
+		// Sample the center 70% of each tab to avoid edge overlap issues
+		// This prevents bleeding from adjacent tabs
+		tabCenter := startX + tabWidth/2
+		sampleWidth := int(float64(tabWidth) * 0.70)
+		sampleStartX := tabCenter - sampleWidth/2
+		sampleEndX := tabCenter + sampleWidth/2
+
+		// Ensure we stay within bounds
+		if sampleStartX < startX {
+			sampleStartX = startX
+		}
+		if sampleEndX > endX {
+			sampleEndX = endX
+		}
+
 		// Count orange/yellow pixels in this region
 		orangeCount := 0
 		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-			for x := startX; x < endX; x++ {
+			for x := sampleStartX; x < sampleEndX; x++ {
 				r, g, b, _ := img.At(x, y).RGBA()
 				// Convert from 16-bit to 8-bit color
 				r8, g8, b8 := uint8(r>>8), uint8(g>>8), uint8(b>>8)
