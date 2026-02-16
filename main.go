@@ -4635,25 +4635,27 @@ func detectDayFromTabRegion(imageData []byte) string {
 	tabRegion := image.NewRGBA(image.Rect(0, 0, width, tabBottom-tabTop))
 	draw.Draw(tabRegion, tabRegion.Bounds(), img, image.Point{0, tabTop}, draw.Src)
 
+	// Simple preprocessing for tab region: scale 2x and convert to grayscale
+	// Don't use preprocessImageForOCR() as it tries to detect data regions (fails on small images)
+	scaledTab := scaleImage(tabRegion, 2)
+	grayTab := convertToGrayscale(scaledTab)
+
 	// Convert to PNG bytes
 	var buf bytes.Buffer
-	if err := png.Encode(&buf, tabRegion); err != nil {
+	if err := png.Encode(&buf, grayTab); err != nil {
 		log.Printf("Failed to encode tab region: %v", err)
 		return ""
 	}
 
-	// Preprocess the tab region for better OCR
-	processedData, err := preprocessImageForOCR(buf.Bytes())
-	if err != nil {
-		log.Printf("Warning: Tab region preprocessing failed: %v. Using original.", err)
-		processedData = buf.Bytes()
-	}
+	log.Printf("Tab region preprocessed: %dx%d -> %dx%d (scaled 2x, grayscale)",
+		tabRegion.Bounds().Dx(), tabRegion.Bounds().Dy(),
+		grayTab.Bounds().Dx(), grayTab.Bounds().Dy())
 
 	// Run OCR on the tab region
 	client := gosseract.NewClient()
 	defer client.Close()
 
-	if err := client.SetImageFromBytes(processedData); err != nil {
+	if err := client.SetImageFromBytes(buf.Bytes()); err != nil {
 		log.Printf("Failed to load tab region for OCR: %v", err)
 		return ""
 	}
