@@ -4599,7 +4599,7 @@ func calculateSimilarity(s1, s2 string) int {
 	return similarity
 }
 
-// Detect selected day tab by color (orange indicates selected tab)
+// Detect selected day tab by color (white/light background indicates selected tab)
 func detectDayByColor(img image.Image) string {
 	bounds := img.Bounds()
 	width := bounds.Dx()
@@ -4608,8 +4608,9 @@ func detectDayByColor(img image.Image) string {
 	days := []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday"}
 	tabWidth := width / 6 // Each tab takes ~1/6 of the width
 
-	// Count orange pixels in each tab region
-	orangeCounts := make([]int, 6)
+	// Count white/light pixels in each tab region
+	// Selected tab has white background, unselected tabs are gray
+	lightCounts := make([]int, 6)
 
 	for dayIdx := 0; dayIdx < 6; dayIdx++ {
 		// Define the region for this day tab
@@ -4634,62 +4635,48 @@ func detectDayByColor(img image.Image) string {
 			sampleEndX = endX
 		}
 
-		// Count orange/yellow pixels in this region
-		orangeCount := 0
+		// Count white/light pixels in this region
+		// Selected tab has white/cream background (high RGB values)
+		lightCount := 0
 		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 			for x := sampleStartX; x < sampleEndX; x++ {
 				r, g, b, _ := img.At(x, y).RGBA()
 				// Convert from 16-bit to 8-bit color
 				r8, g8, b8 := uint8(r>>8), uint8(g>>8), uint8(b>>8)
 
-				// Orange/yellow detection: High red, medium-high green, low blue
-				// Selected tab has orange color (approximately RGB: 240-255, 140-180, 0-50)
-				if r8 > 200 && g8 > 100 && g8 < 200 && b8 < 100 {
-					orangeCount++
+				// White/cream/light background detection
+				// Selected tab has light background (RGB > 200)
+				// Unselected tabs are gray/dark (RGB < 180)
+				if r8 > 200 && g8 > 200 && b8 > 200 {
+					lightCount++
 				}
 			}
 		}
-		orangeCounts[dayIdx] = orangeCount
+		lightCounts[dayIdx] = lightCount
 	}
 
-	// Find the day with the most orange pixels
-	// If multiple days are close (within 10%), prefer the leftmost (earliest day)
-	maxOrange := 0
+	// Find the day with the most light pixels
+	maxLight := 0
 	selectedDay := -1
-	for i, count := range orangeCounts {
-		if count > maxOrange {
-			maxOrange = count
+	for i, count := range lightCounts {
+		if count > maxLight {
+			maxLight = count
 			selectedDay = i
 		}
 	}
 
-	// Check for very close competitors (within 10% of max)
-	// If found, prefer the leftmost tab
-	if maxOrange > 0 {
-		threshold := float64(maxOrange) * 0.10
-		for i := 0; i < selectedDay; i++ {
-			if float64(maxOrange-orangeCounts[i]) <= threshold && orangeCounts[i] > 0 {
-				// Found an earlier day with similar orange count, prefer it
-				selectedDay = i
-				maxOrange = orangeCounts[i]
-				log.Printf("Multiple tabs have similar orange counts, preferring leftmost tab")
-				break
-			}
-		}
-	}
-
 	// Require a minimum threshold to avoid false positives
-	minThreshold := 50 // At least 50 orange pixels
-	if selectedDay >= 0 && maxOrange > minThreshold {
-		log.Printf("Day detected by color: %s (orange pixel count: %d)", days[selectedDay], maxOrange)
+	minThreshold := 100 // At least 100 light pixels
+	if selectedDay >= 0 && maxLight > minThreshold {
+		log.Printf("Day detected by color: %s (light pixel count: %d)", days[selectedDay], maxLight)
 		log.Printf("Color counts per day: Mon=%d, Tue=%d, Wed=%d, Thu=%d, Fri=%d, Sat=%d",
-			orangeCounts[0], orangeCounts[1], orangeCounts[2], orangeCounts[3], orangeCounts[4], orangeCounts[5])
+			lightCounts[0], lightCounts[1], lightCounts[2], lightCounts[3], lightCounts[4], lightCounts[5])
 		return days[selectedDay]
 	}
 
-	log.Printf("Color detection failed: max orange count %d below threshold %d", maxOrange, minThreshold)
+	log.Printf("Color detection failed: max light count %d below threshold %d", maxLight, minThreshold)
 	log.Printf("Color counts per day: Mon=%d, Tue=%d, Wed=%d, Thu=%d, Fri=%d, Sat=%d",
-		orangeCounts[0], orangeCounts[1], orangeCounts[2], orangeCounts[3], orangeCounts[4], orangeCounts[5])
+		lightCounts[0], lightCounts[1], lightCounts[2], lightCounts[3], lightCounts[4], lightCounts[5])
 	return ""
 }
 
