@@ -5010,6 +5010,7 @@ func processVSPointsScreenshot(w http.ResponseWriter, r *http.Request) {
 		Points     int64  `json:"points"`
 	}
 	var detectedDay string
+	var weekDate string
 
 	// Check if this is a multipart form (image upload) or JSON (manual text)
 	contentType := r.Header.Get("Content-Type")
@@ -5019,6 +5020,12 @@ func processVSPointsScreenshot(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			http.Error(w, "Failed to parse form", http.StatusBadRequest)
 			return
+		}
+
+		// Get the week parameter (optional, defaults to "current")
+		weekParam := r.FormValue("week")
+		if weekParam == "" {
+			weekParam = "current"
 		}
 
 		file, _, err := r.FormFile("image")
@@ -5039,6 +5046,20 @@ func processVSPointsScreenshot(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("OCR processing failed: %v", err), http.StatusInternalServerError)
 			return
 		}
+
+		// Determine the week date based on the week parameter
+		now := time.Now()
+		if weekParam == "last" {
+			// Subtract 7 days to get last week
+			now = now.AddDate(0, 0, -7)
+		}
+		weekday := now.Weekday()
+		daysFromMonday := int(weekday) - 1
+		if weekday == time.Sunday {
+			daysFromMonday = 6
+		}
+		monday := now.AddDate(0, 0, -daysFromMonday)
+		weekDate = monday.Format("2006-01-02")
 	} else {
 		// Handle JSON (manual text or pre-parsed data)
 		var request struct {
@@ -5048,6 +5069,7 @@ func processVSPointsScreenshot(w http.ResponseWriter, r *http.Request) {
 			} `json:"records"`
 			Text string `json:"text"` // Raw text to parse
 			Day  string `json:"day"`  // Optional: specify the day
+			Week string `json:"week"` // Optional: "current" or "last"
 		}
 
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -5067,6 +5089,24 @@ func processVSPointsScreenshot(w http.ResponseWriter, r *http.Request) {
 		if request.Day != "" {
 			detectedDay = strings.ToLower(request.Day)
 		}
+
+		// Determine the week date based on the week parameter
+		weekParam := request.Week
+		if weekParam == "" {
+			weekParam = "current"
+		}
+		now := time.Now()
+		if weekParam == "last" {
+			// Subtract 7 days to get last week
+			now = now.AddDate(0, 0, -7)
+		}
+		weekday := now.Weekday()
+		daysFromMonday := int(weekday) - 1
+		if weekday == time.Sunday {
+			daysFromMonday = 6
+		}
+		monday := now.AddDate(0, 0, -daysFromMonday)
+		weekDate = monday.Format("2006-01-02")
 	}
 
 	if len(records) == 0 {
@@ -5093,16 +5133,6 @@ func processVSPointsScreenshot(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Invalid day: %s. Must be monday-saturday", dayColumn), http.StatusBadRequest)
 		return
 	}
-
-	// Determine the week date (Monday of the current week)
-	now := time.Now()
-	weekday := now.Weekday()
-	daysFromMonday := int(weekday) - 1
-	if weekday == time.Sunday {
-		daysFromMonday = 6
-	}
-	monday := now.AddDate(0, 0, -daysFromMonday)
-	weekDate := monday.Format("2006-01-02")
 
 	// Start transaction
 	tx, err := db.Begin()

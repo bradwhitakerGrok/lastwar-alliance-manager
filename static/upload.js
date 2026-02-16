@@ -267,6 +267,12 @@ processImageBtn.addEventListener('click', async () => {
                 const formData = new FormData();
                 formData.append('image', file);
                 
+                // Add week parameter for VS Points
+                if (screenshotType === 'vs-points') {
+                    const week = document.getElementById('vs-week').value;
+                    formData.append('week', week);
+                }
+                
                 const response = await fetch(apiEndpoint, {
                     method: 'POST',
                     body: formData
@@ -448,11 +454,14 @@ function showResult(message, type) {
 function updateScreenshotTypeHint() {
     const screenshotType = document.getElementById('screenshot-type').value;
     const hintElement = document.getElementById('screenshot-type-hint');
+    const weekSelector = document.getElementById('week-selector');
     
     if (screenshotType === 'power') {
         hintElement.textContent = 'Upload power ranking screenshots from the alliance member list.';
+        if (weekSelector) weekSelector.style.display = 'none';
     } else if (screenshotType === 'vs-points') {
         hintElement.innerHTML = '<strong>⚔️ VS Points Instructions:</strong> Make sure to screenshot the "Daily Rank" tab. The system will automatically detect which day (Mon-Sat) is selected from the screenshot.';
+        if (weekSelector) weekSelector.style.display = 'block';
     }
 }
 
