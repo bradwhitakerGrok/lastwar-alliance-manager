@@ -4603,7 +4603,6 @@ func calculateSimilarity(s1, s2 string) int {
 func detectDayByColor(img image.Image) string {
 	bounds := img.Bounds()
 	width := bounds.Dx()
-	height := bounds.Dy()
 
 	// Days are arranged horizontally: Mon, Tues, Wed, Thur, Fri, Sat
 	days := []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday"}
