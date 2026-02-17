@@ -7,11 +7,13 @@ const MAX_FILES = 25;
 async function checkAuth() {
     try {
         const response = await fetch(`${API_BASE}/check-auth`);
-        if (!response.ok) {
+        const data = await response.json();
+        
+        if (!data.authenticated) {
             window.location.href = '/login.html';
             return false;
         }
-        const data = await response.json();
+        
         document.getElementById('username-display').textContent = `👤 ${data.username}`;
         return data;
     } catch (error) {
@@ -22,7 +24,7 @@ async function checkAuth() {
 }
 
 // Setup event listeners after auth check
-async function setupEventListeners() {
+async function setupEventListeners(authData) {
     const usernameDisplay = document.getElementById('username-display');
     const logoutBtn = document.getElementById('dropdown-logout-btn');
     const adminLink = document.getElementById('admin-dropdown-link');
@@ -35,15 +37,9 @@ async function setupEventListeners() {
         logoutBtn.addEventListener('click', handleLogout);
     }
     
-    // Check if user is admin to show admin link
-    try {
-        const response = await fetch(`${API_BASE}/check-auth`);
-        const data = await response.json();
-        if (data.is_admin && adminLink) {
-            adminLink.style.display = 'block';
-        }
-    } catch (error) {
-        console.error('Error checking admin status:', error);
+    // Show admin link if user is admin
+    if (authData && authData.is_admin && adminLink) {
+        adminLink.style.display = 'block';
     }
     
     // Close dropdown when clicking outside
@@ -470,7 +466,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const auth = await checkAuth();
     if (!auth) return;
     
-    await setupEventListeners();
+    await setupEventListeners(auth);
     
     // Setup screenshot type selector
     const screenshotTypeSelector = document.getElementById('screenshot-type');
