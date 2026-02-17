@@ -130,11 +130,11 @@ function displaySystemInfo(settings, avgCount) {
             </div>
             <div class="system-info-item">
                 <span class="info-label">⭐ Recommendations:</span>
-                <span class="info-value">5 + 5*√n pts (non-linear scaling)</span>
+                <span class="info-value">5*√n pts (non-linear scaling)</span>
             </div>
             <div class="system-info-item">
                 <span class="info-label">🏅 R4/R5 Rank Boost:</span>
-                <span class="info-value">+${settings.r4r5_rank_boost} pts</span>
+                <span class="info-value">${settings.r4r5_rank_boost} × 2^(days/14) pts (exponential)</span>
             </div>
             <div class="system-info-item">
                 <span class="info-label">🎯 First Time Conductor Boost:</span>

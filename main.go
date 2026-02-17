@@ -635,9 +635,39 @@ func calculateMemberScore(member Member, ctx *RankingContext) int {
 	// Add award points
 	score += ctx.AwardScoreMap[member.ID]
 
-	// Add rank boost for R4/R5 members
+	// Add rank boost for R4/R5 members (exponential based on days since last conductor)
 	if member.Rank == "R4" || member.Rank == "R5" {
-		score += ctx.Settings.R4R5RankBoost
+		baseBoost := float64(ctx.Settings.R4R5RankBoost)
+
+		// Calculate days since last conductor/backup duty
+		var daysSinceLastDuty int = 0
+		if stats, exists := ctx.ConductorStats[member.ID]; exists {
+			var mostRecentDate *time.Time
+
+			if stats.LastDate != nil {
+				if lastDate, err := parseDate(*stats.LastDate); err == nil {
+					mostRecentDate = &lastDate
+				}
+			}
+
+			// Check if backup usage was more recent
+			if stats.LastBackupUsed != nil {
+				if backupDate, err := parseDate(*stats.LastBackupUsed); err == nil {
+					if mostRecentDate == nil || backupDate.After(*mostRecentDate) {
+						mostRecentDate = &backupDate
+					}
+				}
+			}
+
+			if mostRecentDate != nil {
+				daysSinceLastDuty = int(ctx.ReferenceDate.Sub(*mostRecentDate).Hours() / 24)
+			}
+		}
+
+		// Exponential formula: base_boost * 2^(days/14)
+		// Doubles every 2 weeks, guarantees selection within 6 weeks
+		multiplier := math.Pow(2, float64(daysSinceLastDuty)/14.0)
+		score += int(math.Round(baseBoost * multiplier))
 	}
 
 	// Add first time conductor boost if member has never been conductor and has some points
@@ -3321,9 +3351,38 @@ func getMemberRankings(w http.ResponseWriter, r *http.Request) {
 		ranking.RecommendationCount = recCount
 		ranking.RecommendationPoints = recCount * ctx.Settings.RecommendationPoints
 
-		// Apply rank boost for R4/R5 members
+		// Apply rank boost for R4/R5 members (exponential based on days since last conductor)
 		if member.Rank == "R4" || member.Rank == "R5" {
-			ranking.RankBoost = ctx.Settings.R4R5RankBoost
+			baseBoost := float64(ctx.Settings.R4R5RankBoost)
+
+			// Calculate days since last conductor/backup duty
+			var daysSinceLastDuty int = 0
+			if stats, exists := ctx.ConductorStats[member.ID]; exists {
+				var mostRecentDate *time.Time
+
+				if stats.LastDate != nil {
+					if lastDate, err := parseDate(*stats.LastDate); err == nil {
+						mostRecentDate = &lastDate
+					}
+				}
+
+				// Check if backup usage was more recent
+				if stats.LastBackupUsed != nil {
+					if backupDate, err := parseDate(*stats.LastBackupUsed); err == nil {
+						if mostRecentDate == nil || backupDate.After(*mostRecentDate) {
+							mostRecentDate = &backupDate
+						}
+					}
+				}
+
+				if mostRecentDate != nil {
+					daysSinceLastDuty = int(now.Sub(*mostRecentDate).Hours() / 24)
+				}
+			}
+
+			// Exponential formula: base_boost * 2^(days/14)
+			multiplier := math.Pow(2, float64(daysSinceLastDuty)/14.0)
+			ranking.RankBoost = int(math.Round(baseBoost * multiplier))
 		}
 
 		// Apply first time conductor boost if member has never been conductor
@@ -3497,7 +3556,7 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 			awardRows.Close()
 		}
 
-		// Get recommendations (calculate non-linear points: 5 + 5*sqrt(n))
+		// Get recommendations (calculate non-linear points: 5*sqrt(n))
 		recRows, err := db.Query(`
 			SELECT DATE(created_at) as rec_date, COUNT(*) as count
 			FROM recommendations 
@@ -3510,8 +3569,8 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 				var recDate string
 				var count int
 				if err := recRows.Scan(&recDate, &count); err == nil {
-					// Non-linear formula: 5 + 5*sqrt(count)
-					points := int(5 + 5*math.Sqrt(float64(count)))
+					// Non-linear formula: 5*sqrt(count)
+					points := int(5 * math.Sqrt(float64(count)))
 					events = append(events, PointEvent{Date: recDate, Points: points})
 				}
 			}
@@ -4813,11 +4872,11 @@ func extractVSPointsDataFromImage(imageData []byte) (day string, records []struc
 
 	// Analyze screenshot to get regions
 	attrs := analyzeScreenshot(img)
-	
+
 	// Try segmented OCR approach: extract and process individual rows
 	log.Printf("Attempting row-by-row segmented OCR...")
 	records, err = extractVSPointsByRows(img, attrs)
-	
+
 	if err != nil || len(records) == 0 {
 		log.Printf("Segmented OCR failed (%v), falling back to full image OCR", err)
 		// Fallback to original full-image OCR approach
@@ -4963,7 +5022,7 @@ func extractVSPointsByRows(img image.Image, attrs *ScreenshotAttributes) ([]stru
 		pointsStr = strings.ReplaceAll(pointsStr, ",", "")
 		pointsStr = strings.ReplaceAll(pointsStr, ".", "")
 		pointsStr = strings.ReplaceAll(pointsStr, " ", "")
-		
+
 		points, err := strconv.ParseInt(pointsStr, 10, 64)
 		if err != nil {
 			log.Printf("Row %d: Failed to parse points '%s': %v", i+1, pointsStr, err)
@@ -5046,18 +5105,18 @@ func cleanPlayerName(name string) string {
 	name = strings.ReplaceAll(name, "|", "I")
 	name = strings.ReplaceAll(name, "~", "")
 	name = strings.ReplaceAll(name, "`", "")
-	
+
 	// Remove alliance tags like [NTMs], (NTMs), etc.
 	re := regexp.MustCompile(`\[.*?\]|\(.*?\)`)
 	name = re.ReplaceAllString(name, "")
-	
+
 	// Remove rank numbers at the start (1), (2), etc.
 	re = regexp.MustCompile(`^\d+\)?\s*`)
 	name = re.ReplaceAllString(name, "")
-	
+
 	// Clean up whitespace
 	name = strings.TrimSpace(name)
-	
+
 	return name
 }
 
