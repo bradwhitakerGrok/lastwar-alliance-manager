@@ -193,15 +193,21 @@ LastWar/
 ## Permissions
 
 - **Admin**: Full access to all features, R5/Admin-only settings (not linked to a member)
-- **R5 Members**: Can manage members, create user accounts, update settings, manage all schedules
-- **R4 Members**: Can manage members and schedules (cannot update settings or create users)
-- **R3/R2/R1 Members**: Can view all information but cannot modify
+- **R5 Members**: Can manage members, create user accounts, update settings, manage all schedules, upload screenshots
+- **R4 Members**: Can manage members and schedules, upload screenshots (cannot update settings or create users)
+- **R3 Members**: Can upload screenshots and view all information (cannot modify members or schedules)
+- **R2/R1 Members**: Can view all information but cannot modify or upload
 
 ### R5/Admin-Only Features
 - Create user accounts for members
 - Update ranking system configuration
 - Modify message templates
 - Change all system settings
+
+### Upload Features (R3+)
+- Upload power ranking screenshots
+- Upload VS Points screenshots  
+- Manual data entry for power/VS points
 
 ## Technologies Used
 
