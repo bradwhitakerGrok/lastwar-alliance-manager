@@ -664,9 +664,9 @@ func calculateMemberScore(member Member, ctx *RankingContext) int {
 			}
 		}
 
-		// Exponential formula: base_boost * 2^(days/14)
-		// Doubles every 2 weeks, guarantees selection within 6 weeks
-		multiplier := math.Pow(2, float64(daysSinceLastDuty)/14.0)
+		// Exponential formula: base_boost * 2^(days/7)
+		// Doubles every week, guarantees selection within 3 weeks
+		multiplier := math.Pow(2, float64(daysSinceLastDuty)/7.0)
 		score += int(math.Round(baseBoost * multiplier))
 	}
 
@@ -3380,8 +3380,8 @@ func getMemberRankings(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
-			// Exponential formula: base_boost * 2^(days/14)
-			multiplier := math.Pow(2, float64(daysSinceLastDuty)/14.0)
+			// Exponential formula: base_boost * 2^(days/7)
+			multiplier := math.Pow(2, float64(daysSinceLastDuty)/7.0)
 			ranking.RankBoost = int(math.Round(baseBoost * multiplier))
 		}
 
@@ -3717,15 +3717,15 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 		}
 
 		timelines[member.ID] = map[string]interface{}{
-			"dates":                  weekLabels,
-			"points_with_reset":      pointsWithReset,
-			"points_cumulative":      pointsCumulative,
-			"awards_with_reset":      awardsWithReset,
-			"awards_cumulative":      awardsCumulative,
+			"dates":                      weekLabels,
+			"points_with_reset":          pointsWithReset,
+			"points_cumulative":          pointsCumulative,
+			"awards_with_reset":          awardsWithReset,
+			"awards_cumulative":          awardsCumulative,
 			"recommendations_with_reset": recsWithReset,
 			"recommendations_cumulative": recsCumulative,
-			"conductor_dates":        conductorWeekLabels,
-			"power":                  powerValues,
+			"conductor_dates":            conductorWeekLabels,
+			"power":                      powerValues,
 		}
 	}
 

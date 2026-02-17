@@ -134,7 +134,7 @@ function displaySystemInfo(settings, avgCount) {
             </div>
             <div class="system-info-item">
                 <span class="info-label">🏅 R4/R5 Rank Boost:</span>
-                <span class="info-value">${settings.r4r5_rank_boost} × 2^(days/14) pts (exponential)</span>
+                <span class="info-value">${settings.r4r5_rank_boost} × 2^(days/7) pts (exponential)</span>
             </div>
             <div class="system-info-item">
                 <span class="info-label">🎯 First Time Conductor Boost:</span>
@@ -153,7 +153,7 @@ function displaySystemInfo(settings, avgCount) {
             <strong>Note:</strong> Awards and recommendations stack across multiple weeks until you're assigned as conductor/backup, then they expire. 
             Average conductor count: <strong>${avgCount.toFixed(2)}</strong> times.
             <br><strong>Recommendation Formula:</strong> 5*√n points per day (1 rec = 5pts, 4 recs = 10pts, 9 recs = 15pts, 16 recs = 20pts)
-            <br><strong>R4/R5 Boost:</strong> Base × 2^(days/14) - doubles every 2 weeks (Day 0: 1×, Day 14: 2×, Day 28: 4×, Day 42: 8×)
+            <br><strong>R4/R5 Boost:</strong> Base × 2^(days/7) - doubles every week (Day 0: 1×, Day 7: 2×, Day 14: 4×, Day 21: 8×)
         </p>
     `;
     document.getElementById('system-info').innerHTML = html;
