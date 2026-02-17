@@ -152,7 +152,8 @@ function displaySystemInfo(settings, avgCount) {
         <p class="system-note">
             <strong>Note:</strong> Awards and recommendations stack across multiple weeks until you're assigned as conductor/backup, then they expire. 
             Average conductor count: <strong>${avgCount.toFixed(2)}</strong> times.
-            <br><strong>Recommendation Formula:</strong> 1 rec = 10pts, 2 recs = 12pts, 3 recs = 14pts, 4 recs = 15pts (diminishing returns)
+            <br><strong>Recommendation Formula:</strong> 5*√n points per day (1 rec = 5pts, 4 recs = 10pts, 9 recs = 15pts, 16 recs = 20pts)
+            <br><strong>R4/R5 Boost:</strong> Base × 2^(days/14) - doubles every 2 weeks (Day 0: 1×, Day 14: 2×, Day 28: 4×, Day 42: 8×)
         </p>
     `;
     document.getElementById('system-info').innerHTML = html;
