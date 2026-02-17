@@ -336,6 +336,7 @@ async function createMemberTimelineCharts(rankings) {
             // Get member-specific settings
             const showReset = document.getElementById(`show-reset-${ranking.member.id}`)?.checked ?? true;
             const showNoReset = document.getElementById(`show-no-reset-${ranking.member.id}`)?.checked ?? true;
+            const showBreakdown = document.getElementById(`show-breakdown-${ranking.member.id}`)?.checked ?? false;
             const showPower = document.getElementById(`show-power-${ranking.member.id}`)?.checked ?? true;
             const scaleType = document.querySelector(`input[name="scale-type-${ranking.member.id}"]:checked`)?.value || 'linear';
             
@@ -343,30 +344,79 @@ async function createMemberTimelineCharts(rankings) {
             
             const datasets = [];
             
-            if (showReset && memberData.points_with_reset) {
-                datasets.push({
-                    label: 'With Train Resets',
-                    data: memberData.points_with_reset,
-                    borderColor: 'rgba(255, 99, 132, 1)',
-                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                    borderWidth: 2,
-                    fill: true,
-                    tension: 0.1,
-                    yAxisID: 'y'
-                });
-            }
-            
-            if (showNoReset && memberData.points_cumulative) {
-                datasets.push({
-                    label: 'Cumulative (No Reset)',
-                    data: memberData.points_cumulative,
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
-                    borderWidth: 2,
-                    yAxisID: 'y',
-                    fill: true,
-                    tension: 0.1
-                });
+            // Show breakdown of points (stacked areas)
+            if (showBreakdown) {
+                if (showReset) {
+                    datasets.push({
+                        label: 'Awards',
+                        data: memberData.awards_with_reset,
+                        backgroundColor: 'rgba(255, 205, 86, 0.7)',
+                        borderColor: 'rgba(255, 205, 86, 1)',
+                        borderWidth: 1,
+                        fill: true,
+                        stack: 'reset',
+                        yAxisID: 'y'
+                    });
+                    datasets.push({
+                        label: 'Recommendations',
+                        data: memberData.recommendations_with_reset,
+                        backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        fill: true,
+                        stack: 'reset',
+                        yAxisID: 'y'
+                    });
+                }
+                if (showNoReset) {
+                    datasets.push({
+                        label: 'Awards (Cumulative)',
+                        data: memberData.awards_cumulative,
+                        backgroundColor: 'rgba(255, 205, 86, 0.4)',
+                        borderColor: 'rgba(255, 205, 86, 1)',
+                        borderWidth: 1,
+                        fill: true,
+                        stack: 'cumulative',
+                        yAxisID: 'y'
+                    });
+                    datasets.push({
+                        label: 'Recommendations (Cumulative)',
+                        data: memberData.recommendations_cumulative,
+                        backgroundColor: 'rgba(75, 192, 192, 0.4)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        fill: true,
+                        stack: 'cumulative',
+                        yAxisID: 'y'
+                    });
+                }
+            } else {
+                // Show combined totals (lines)
+                if (showReset && memberData.points_with_reset) {
+                    datasets.push({
+                        label: 'With Train Resets',
+                        data: memberData.points_with_reset,
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.1,
+                        yAxisID: 'y'
+                    });
+                }
+                
+                if (showNoReset && memberData.points_cumulative) {
+                    datasets.push({
+                        label: 'Cumulative (No Reset)',
+                        data: memberData.points_cumulative,
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        borderWidth: 2,
+                        yAxisID: 'y',
+                        fill: true,
+                        tension: 0.1
+                    });
+                }
             }
             
             if (showPower && memberData.power) {
@@ -439,14 +489,16 @@ async function createMemberTimelineCharts(rankings) {
                                 maxRotation: 45,
                                 minRotation: 45,
                                 font: { size: 9 }
-                            }
+                            },
+                            stacked: showBreakdown
                         },
                         y: {
                             type: scaleType,
                             beginAtZero: true,
                             position: 'left',
                             title: { display: true, text: 'Points', font: { size: 11 } },
-                            ticks: { font: { size: 10 } }
+                            ticks: { font: { size: 10 } },
+                            stacked: showBreakdown
                         },
                         y1: {
                             type: 'linear',
@@ -633,6 +685,10 @@ function displayRankings(rankings) {
                             <label>
                                 <input type="checkbox" id="show-no-reset-${ranking.member.id}" class="timeline-option" data-member-id="${ranking.member.id}" checked>
                                 <span>Show without Resets (Cumulative)</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="show-breakdown-${ranking.member.id}" class="timeline-option" data-member-id="${ranking.member.id}">
+                                <span>📈 Show Point Breakdown (Awards/Recs)</span>
                             </label>
                             <label>
                                 <input type="checkbox" id="show-power-${ranking.member.id}" class="timeline-option" data-member-id="${ranking.member.id}" checked>

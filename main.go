@@ -3523,12 +3523,13 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 		}
 		conductorRows.Close()
 
-		// Get all awards and recommendations since start date
+		// Get all awards and recommendations since start date (tracked separately)
 		type PointEvent struct {
 			Date   string
-			Points int
+			Awards int
+			Recs   int
 		}
-		var events []PointEvent
+		eventMap := make(map[string]*PointEvent)
 
 		// Get awards
 		awardRows, err := db.Query(`
@@ -3550,7 +3551,10 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 					case 3:
 						points = settings.AwardThirdPoints
 					}
-					events = append(events, PointEvent{Date: weekDate, Points: points})
+					if eventMap[weekDate] == nil {
+						eventMap[weekDate] = &PointEvent{Date: weekDate}
+					}
+					eventMap[weekDate].Awards += points
 				}
 			}
 			awardRows.Close()
@@ -3571,13 +3575,20 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 				if err := recRows.Scan(&recDate, &count); err == nil {
 					// Non-linear formula: 5*sqrt(count)
 					points := int(5 * math.Sqrt(float64(count)))
-					events = append(events, PointEvent{Date: recDate, Points: points})
+					if eventMap[recDate] == nil {
+						eventMap[recDate] = &PointEvent{Date: recDate}
+					}
+					eventMap[recDate].Recs += points
 				}
 			}
 			recRows.Close()
 		}
 
-		// Sort events by date
+		// Convert map to sorted slice
+		var events []PointEvent
+		for _, event := range eventMap {
+			events = append(events, *event)
+		}
 		sort.Slice(events, func(i, j int) bool {
 			return events[i].Date < events[j].Date
 		})
@@ -3607,10 +3618,18 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 		weekLabels := []string{}
 		pointsWithReset := []int{}
 		pointsCumulative := []int{}
+		awardsWithReset := []int{}
+		awardsCumulative := []int{}
+		recsWithReset := []int{}
+		recsCumulative := []int{}
 		powerValues := []int{}
 
 		currentPoints := 0
 		cumulativePoints := 0
+		currentAwards := 0
+		cumulativeAwards := 0
+		currentRecs := 0
+		cumulativeRecs := 0
 		conductorIdx := 0
 
 		// Generate week range from start to now (by Monday of each week)
@@ -3639,19 +3658,28 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Add points from events in this week
-			weekPoints := 0
+			weekAwards := 0
+			weekRecs := 0
 			for _, event := range events {
 				if event.Date >= weekStartStr && event.Date <= weekEndStr {
-					weekPoints += event.Points
+					weekAwards += event.Awards
+					weekRecs += event.Recs
 				}
 			}
+			weekPoints := weekAwards + weekRecs
 
 			currentPoints += weekPoints
 			cumulativePoints += weekPoints
+			currentAwards += weekAwards
+			cumulativeAwards += weekAwards
+			currentRecs += weekRecs
+			cumulativeRecs += weekRecs
 
 			// Apply reset at end of week if conductor event occurred
 			if weekHasReset {
 				currentPoints = 0
+				currentAwards = 0
+				currentRecs = 0
 			}
 
 			// Find max power value for this week
@@ -3666,6 +3694,10 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 
 			pointsWithReset = append(pointsWithReset, currentPoints)
 			pointsCumulative = append(pointsCumulative, cumulativePoints)
+			awardsWithReset = append(awardsWithReset, currentAwards)
+			awardsCumulative = append(awardsCumulative, cumulativeAwards)
+			recsWithReset = append(recsWithReset, currentRecs)
+			recsCumulative = append(recsCumulative, cumulativeRecs)
 			powerValues = append(powerValues, weekMaxPower)
 
 			currentDate = currentDate.AddDate(0, 0, 7)
@@ -3685,11 +3717,15 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 		}
 
 		timelines[member.ID] = map[string]interface{}{
-			"dates":             weekLabels,
-			"points_with_reset": pointsWithReset,
-			"points_cumulative": pointsCumulative,
-			"conductor_dates":   conductorWeekLabels,
-			"power":             powerValues,
+			"dates":                  weekLabels,
+			"points_with_reset":      pointsWithReset,
+			"points_cumulative":      pointsCumulative,
+			"awards_with_reset":      awardsWithReset,
+			"awards_cumulative":      awardsCumulative,
+			"recommendations_with_reset": recsWithReset,
+			"recommendations_cumulative": recsCumulative,
+			"conductor_dates":        conductorWeekLabels,
+			"power":                  powerValues,
 		}
 	}
 
