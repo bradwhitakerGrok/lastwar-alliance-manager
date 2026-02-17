@@ -350,7 +350,7 @@ async function createMemberTimelineCharts(rankings) {
                     datasets.push({
                         label: 'Awards',
                         data: memberData.awards_with_reset,
-                        backgroundColor: 'rgba(255, 205, 86, 0.7)',
+                        backgroundColor: 'rgba(255, 205, 86, 0.8)',
                         borderColor: 'rgba(255, 205, 86, 1)',
                         borderWidth: 1,
                         fill: true,
@@ -360,8 +360,49 @@ async function createMemberTimelineCharts(rankings) {
                     datasets.push({
                         label: 'Recommendations',
                         data: memberData.recommendations_with_reset,
-                        backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.8)',
                         borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        fill: true,
+                        stack: 'reset',
+                        yAxisID: 'y'
+                    });
+                    datasets.push({
+                        label: 'Rank Boost',
+                        data: memberData.rank_boost_with_reset,
+                        backgroundColor: 'rgba(153, 102, 255, 0.8)',
+                        borderColor: 'rgba(153, 102, 255, 1)',
+                        borderWidth: 1,
+                        fill: true,
+                        stack: 'reset',
+                        yAxisID: 'y'
+                    });
+                    datasets.push({
+                        label: 'First Timer Boost',
+                        data: memberData.first_time_boost_with_reset,
+                        backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1,
+                        fill: true,
+                        stack: 'reset',
+                        yAxisID: 'y'
+                    });
+                    // Penalties are negative
+                    datasets.push({
+                        label: 'Recent Penalty',
+                        data: memberData.recent_penalty_with_reset.map(v => -v),
+                        backgroundColor: 'rgba(255, 99, 132, 0.8)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 1,
+                        fill: true,
+                        stack: 'reset',
+                        yAxisID: 'y'
+                    });
+                    datasets.push({
+                        label: 'Above Avg Penalty',
+                        data: memberData.above_avg_penalty_with_reset.map(v => -v),
+                        backgroundColor: 'rgba(255, 159, 64, 0.8)',
+                        borderColor: 'rgba(255, 159, 64, 1)',
                         borderWidth: 1,
                         fill: true,
                         stack: 'reset',
@@ -372,7 +413,7 @@ async function createMemberTimelineCharts(rankings) {
                     datasets.push({
                         label: 'Awards (Cumulative)',
                         data: memberData.awards_cumulative,
-                        backgroundColor: 'rgba(255, 205, 86, 0.4)',
+                        backgroundColor: 'rgba(255, 205, 86, 0.5)',
                         borderColor: 'rgba(255, 205, 86, 1)',
                         borderWidth: 1,
                         fill: true,
@@ -382,8 +423,48 @@ async function createMemberTimelineCharts(rankings) {
                     datasets.push({
                         label: 'Recommendations (Cumulative)',
                         data: memberData.recommendations_cumulative,
-                        backgroundColor: 'rgba(75, 192, 192, 0.4)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.5)',
                         borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        fill: true,
+                        stack: 'cumulative',
+                        yAxisID: 'y'
+                    });
+                    datasets.push({
+                        label: 'Rank Boost (Cumulative)',
+                        data: memberData.rank_boost_cumulative,
+                        backgroundColor: 'rgba(153, 102, 255, 0.5)',
+                        borderColor: 'rgba(153, 102, 255, 1)',
+                        borderWidth: 1,
+                        fill: true,
+                        stack: 'cumulative',
+                        yAxisID: 'y'
+                    });
+                    datasets.push({
+                        label: 'First Timer (Cumulative)',
+                        data: memberData.first_time_boost_cumulative,
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1,
+                        fill: true,
+                        stack: 'cumulative',
+                        yAxisID: 'y'
+                    });
+                    datasets.push({
+                        label: 'Recent Penalty (Cumulative)',
+                        data: memberData.recent_penalty_cumulative.map(v => -v),
+                        backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 1,
+                        fill: true,
+                        stack: 'cumulative',
+                        yAxisID: 'y'
+                    });
+                    datasets.push({
+                        label: 'Above Avg (Cumulative)',
+                        data: memberData.above_avg_penalty_cumulative.map(v => -v),
+                        backgroundColor: 'rgba(255, 159, 64, 0.5)',
+                        borderColor: 'rgba(255, 159, 64, 1)',
                         borderWidth: 1,
                         fill: true,
                         stack: 'cumulative',
@@ -688,7 +769,7 @@ function displayRankings(rankings) {
                             </label>
                             <label>
                                 <input type="checkbox" id="show-breakdown-${ranking.member.id}" class="timeline-option" data-member-id="${ranking.member.id}">
-                                <span>📈 Show Point Breakdown (Awards/Recs)</span>
+                                <span>📈 Show Point Breakdown (All Categories)</span>
                             </label>
                             <label>
                                 <input type="checkbox" id="show-power-${ranking.member.id}" class="timeline-option" data-member-id="${ranking.member.id}" checked>

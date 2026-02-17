@@ -3492,12 +3492,28 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 	// Get settings for point calculations
 	var settings Settings
 	err = db.QueryRow(`SELECT award_first_points, award_second_points, award_third_points, 
-		recommendation_points FROM settings WHERE id = 1`).Scan(
+		recommendation_points, r4r5_rank_boost, first_time_conductor_boost,
+		recent_conductor_penalty_days, above_average_conductor_penalty 
+		FROM settings WHERE id = 1`).Scan(
 		&settings.AwardFirstPoints, &settings.AwardSecondPoints,
-		&settings.AwardThirdPoints, &settings.RecommendationPoints)
+		&settings.AwardThirdPoints, &settings.RecommendationPoints,
+		&settings.R4R5RankBoost, &settings.FirstTimeConductorBoost,
+		&settings.RecentConductorPenaltyDays, &settings.AboveAverageConductorPenalty)
 	if err != nil {
 		http.Error(w, "Failed to load settings: "+err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Calculate average conductor count for above average penalty
+	var totalConductors, memberCount int
+	db.QueryRow(`
+		SELECT COUNT(DISTINCT conductor_id), 
+		       (SELECT COUNT(*) FROM members WHERE eligible = 1)
+		FROM train_schedules
+	`).Scan(&totalConductors, &memberCount)
+	avgConductorCount := 0.0
+	if memberCount > 0 {
+		avgConductorCount = float64(totalConductors) / float64(memberCount)
 	}
 
 	// Build timeline data for each member
@@ -3622,6 +3638,14 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 		awardsCumulative := []int{}
 		recsWithReset := []int{}
 		recsCumulative := []int{}
+		rankBoostWithReset := []int{}
+		rankBoostCumulative := []int{}
+		firstTimeBoostWithReset := []int{}
+		firstTimeBoostCumulative := []int{}
+		recentPenaltyWithReset := []int{}
+		recentPenaltyCumulative := []int{}
+		aboveAvgPenaltyWithReset := []int{}
+		aboveAvgPenaltyCumulative := []int{}
 		powerValues := []int{}
 
 		currentPoints := 0
@@ -3630,7 +3654,16 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 		cumulativeAwards := 0
 		currentRecs := 0
 		cumulativeRecs := 0
+		currentRankBoost := 0
+		cumulativeRankBoost := 0
+		currentFirstTimeBoost := 0
+		cumulativeFirstTimeBoost := 0
+		currentRecentPenalty := 0
+		cumulativeRecentPenalty := 0
+		currentAboveAvgPenalty := 0
+		cumulativeAboveAvgPenalty := 0
 		conductorIdx := 0
+		conductorCountSoFar := 0
 
 		// Generate week range from start to now (by Monday of each week)
 		currentDate := getMondayOfWeek(startDate)
@@ -3648,9 +3681,12 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 
 			// Check if this week has a conductor event (train reset)
 			weekHasReset := false
+			lastConductorDateInWeek := ""
 			for conductorIdx < len(conductorDates) && conductorDates[conductorIdx] <= weekEndStr {
 				if conductorDates[conductorIdx] >= weekStartStr {
 					weekHasReset = true
+					lastConductorDateInWeek = conductorDates[conductorIdx]
+					conductorCountSoFar++
 					conductorIdx++
 				} else {
 					conductorIdx++
@@ -3675,11 +3711,74 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 			currentRecs += weekRecs
 			cumulativeRecs += weekRecs
 
+			// Calculate Rank Boost (R4/R5 exponential)
+			weekRankBoost := 0
+			if member.Rank == "R4" || member.Rank == "R5" {
+				baseBoost := float64(settings.R4R5RankBoost)
+				// Find most recent conductor date before this week
+				daysSinceLastDuty := 0
+				for i := conductorIdx - 1; i >= 0; i-- {
+					if i < len(conductorDates) {
+						if lastConductorDate, err := time.Parse("2006-01-02", conductorDates[i]); err == nil {
+							daysSinceLastDuty = int(weekEnd.Sub(lastConductorDate).Hours() / 24)
+							break
+						}
+					}
+				}
+				multiplier := math.Pow(2, float64(daysSinceLastDuty)/7.0)
+				weekRankBoost = int(math.Round(baseBoost * multiplier))
+			}
+			currentRankBoost += weekRankBoost
+			cumulativeRankBoost += weekRankBoost
+
+			// Calculate First Time Conductor Boost
+			weekFirstTimeBoost := 0
+			if conductorCountSoFar == 0 {
+				// Only if they have other points (awards, recs, or rank boost)
+				if currentAwards > 0 || currentRecs > 0 || currentRankBoost > 0 {
+					weekFirstTimeBoost = settings.FirstTimeConductorBoost
+				}
+			}
+			currentFirstTimeBoost += weekFirstTimeBoost
+			cumulativeFirstTimeBoost += weekFirstTimeBoost
+
+			// Calculate Recent Conductor Penalty
+			weekRecentPenalty := 0
+			if conductorCountSoFar > 0 {
+				// Find most recent conductor date
+				for i := conductorIdx - 1; i >= 0; i-- {
+					if i < len(conductorDates) {
+						if lastConductorDate, err := time.Parse("2006-01-02", conductorDates[i]); err == nil {
+							daysSince := int(weekEnd.Sub(lastConductorDate).Hours() / 24)
+							penalty := settings.RecentConductorPenaltyDays - daysSince
+							if penalty > 0 {
+								weekRecentPenalty = penalty
+							}
+							break
+						}
+					}
+				}
+			}
+			currentRecentPenalty += weekRecentPenalty
+			cumulativeRecentPenalty += weekRecentPenalty
+
+			// Calculate Above Average Penalty
+			weekAboveAvgPenalty := 0
+			if float64(conductorCountSoFar) > avgConductorCount {
+				weekAboveAvgPenalty = settings.AboveAverageConductorPenalty
+			}
+			currentAboveAvgPenalty += weekAboveAvgPenalty
+			cumulativeAboveAvgPenalty += weekAboveAvgPenalty
+
 			// Apply reset at end of week if conductor event occurred
 			if weekHasReset {
 				currentPoints = 0
 				currentAwards = 0
 				currentRecs = 0
+				currentRankBoost = 0
+				currentFirstTimeBoost = 0
+				currentRecentPenalty = 0
+				currentAboveAvgPenalty = 0
 			}
 
 			// Find max power value for this week
@@ -3698,6 +3797,14 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 			awardsCumulative = append(awardsCumulative, cumulativeAwards)
 			recsWithReset = append(recsWithReset, currentRecs)
 			recsCumulative = append(recsCumulative, cumulativeRecs)
+			rankBoostWithReset = append(rankBoostWithReset, currentRankBoost)
+			rankBoostCumulative = append(rankBoostCumulative, cumulativeRankBoost)
+			firstTimeBoostWithReset = append(firstTimeBoostWithReset, currentFirstTimeBoost)
+			firstTimeBoostCumulative = append(firstTimeBoostCumulative, cumulativeFirstTimeBoost)
+			recentPenaltyWithReset = append(recentPenaltyWithReset, currentRecentPenalty)
+			recentPenaltyCumulative = append(recentPenaltyCumulative, cumulativeRecentPenalty)
+			aboveAvgPenaltyWithReset = append(aboveAvgPenaltyWithReset, currentAboveAvgPenalty)
+			aboveAvgPenaltyCumulative = append(aboveAvgPenaltyCumulative, cumulativeAboveAvgPenalty)
 			powerValues = append(powerValues, weekMaxPower)
 
 			currentDate = currentDate.AddDate(0, 0, 7)
@@ -3717,15 +3824,23 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 		}
 
 		timelines[member.ID] = map[string]interface{}{
-			"dates":                      weekLabels,
-			"points_with_reset":          pointsWithReset,
-			"points_cumulative":          pointsCumulative,
-			"awards_with_reset":          awardsWithReset,
-			"awards_cumulative":          awardsCumulative,
-			"recommendations_with_reset": recsWithReset,
-			"recommendations_cumulative": recsCumulative,
-			"conductor_dates":            conductorWeekLabels,
-			"power":                      powerValues,
+			"dates":                        weekLabels,
+			"points_with_reset":            pointsWithReset,
+			"points_cumulative":            pointsCumulative,
+			"awards_with_reset":            awardsWithReset,
+			"awards_cumulative":            awardsCumulative,
+			"recommendations_with_reset":   recsWithReset,
+			"recommendations_cumulative":   recsCumulative,
+			"rank_boost_with_reset":        rankBoostWithReset,
+			"rank_boost_cumulative":        rankBoostCumulative,
+			"first_time_boost_with_reset":  firstTimeBoostWithReset,
+			"first_time_boost_cumulative":  firstTimeBoostCumulative,
+			"recent_penalty_with_reset":    recentPenaltyWithReset,
+			"recent_penalty_cumulative":    recentPenaltyCumulative,
+			"above_avg_penalty_with_reset": aboveAvgPenaltyWithReset,
+			"above_avg_penalty_cumulative": aboveAvgPenaltyCumulative,
+			"conductor_dates":              conductorWeekLabels,
+			"power":                        powerValues,
 		}
 	}
 
