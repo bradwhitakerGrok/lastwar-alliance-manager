@@ -3681,13 +3681,9 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 
 			// Check if this week has a conductor event (train reset)
 			weekHasReset := false
-			lastConductorDateInWeek := ""
 			for conductorIdx < len(conductorDates) && conductorDates[conductorIdx] <= weekEndStr {
 				if conductorDates[conductorIdx] >= weekStartStr {
 					weekHasReset = true
-					lastConductorDateInWeek = conductorDates[conductorIdx]
-					conductorCountSoFar++
-					conductorIdx++
 				} else {
 					conductorIdx++
 				}
