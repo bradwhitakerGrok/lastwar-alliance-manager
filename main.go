@@ -11,6 +11,8 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	_ "image/gif"
+	_ "image/jpeg"
 	"image/png"
 	"io"
 	"log"
@@ -4711,6 +4713,10 @@ func parsePowerRankingsText(text string) []struct {
 	// Pattern for lines with rank number prefix: "1 Gary6126 R4 77421000" or "1 ileesu R4 66715876"
 	rankPrefixPattern := regexp.MustCompile(`^[0-9]{1,3}\s+([A-Za-z][A-Za-z0-9_\s]+?)\s+(?:R[0-9]\s+)?([0-9]{7,})`)
 
+	// Flexible pattern that allows letters in power (for OCR errors): "B 25) Nutty Tx s1926102"
+	// This captures name followed by 7+ chars that may contain letters misread as digits
+	flexiblePattern := regexp.MustCompile(`(?:[A-Z]{1,3}\s+)?(?:\d+\)?\s+)?([A-Za-z][A-Za-z0-9_\s]+?)\s+([A-Za-z0-9]{7,})`)
+
 	// Track seen names to avoid duplicates from multi-line OCR
 	seenNames := make(map[string]bool)
 
@@ -4745,6 +4751,10 @@ func parsePowerRankingsText(text string) []struct {
 			// Try simple pattern
 			matches = simplePattern.FindStringSubmatch(line)
 		}
+		if len(matches) == 0 {
+			// Try flexible pattern (allows letters in power number for OCR errors)
+			matches = flexiblePattern.FindStringSubmatch(line)
+		}
 
 		if len(matches) >= 3 {
 			name := strings.TrimSpace(matches[1])
@@ -4753,9 +4763,21 @@ func parsePowerRankingsText(text string) []struct {
 
 			powerStr := strings.ReplaceAll(matches[2], ",", "")
 			powerStr = strings.ReplaceAll(powerStr, " ", "")
-			powerStr = strings.ReplaceAll(powerStr, ".", "")  // Remove periods OCR might insert
-			powerStr = strings.ReplaceAll(powerStr, "O", "0") // Replace O with 0 (common OCR error)
-			powerStr = strings.ReplaceAll(powerStr, "o", "0") // Replace o with 0
+			powerStr = strings.ReplaceAll(powerStr, ".", "") // Remove periods OCR might insert
+			// Common OCR character misreads for digits
+			powerStr = strings.ReplaceAll(powerStr, "O", "0")
+			powerStr = strings.ReplaceAll(powerStr, "o", "0")
+			powerStr = strings.ReplaceAll(powerStr, "s", "6") // s often misread as 6
+			powerStr = strings.ReplaceAll(powerStr, "S", "5") // S often misread as 5
+			powerStr = strings.ReplaceAll(powerStr, "l", "1") // l often misread as 1
+			powerStr = strings.ReplaceAll(powerStr, "I", "1") // I often misread as 1
+			powerStr = strings.ReplaceAll(powerStr, "Z", "2") // Z sometimes misread as 2
+			powerStr = strings.ReplaceAll(powerStr, "B", "8") // B sometimes misread as 8
+			powerStr = strings.ReplaceAll(powerStr, "e", "6") // e sometimes misread as 6
+			powerStr = strings.ReplaceAll(powerStr, "g", "9") // g sometimes misread as 9
+			powerStr = strings.ReplaceAll(powerStr, "G", "6") // G sometimes misread as 6
+			// Remove any remaining non-digit characters
+			powerStr = regexp.MustCompile(`[^0-9]`).ReplaceAllString(powerStr, "")
 
 			power, err := strconv.ParseInt(powerStr, 10, 64)
 
