@@ -4601,7 +4601,13 @@ func preprocessImageForOCR(imageData []byte) ([]byte, error) {
 	attrs := analyzeScreenshot(img)
 
 	// Crop to data region only (remove UI elements)
-	croppedImg := cropToDataRegion(img, attrs.DataRegion)
+	// For narrow screenshots or when power values might be cut off, use less aggressive cropping
+	croppedImg := img
+	if attrs.DataRegion != nil && attrs.Width > 600 {
+		croppedImg = cropToDataRegion(img, attrs.DataRegion)
+	} else {
+		log.Printf("Skipping crop for narrow image to preserve power values")
+	}
 
 	// Scale up 2x for better OCR (small text is hard to read)
 	scaledImg := scaleImage(croppedImg, 2)
@@ -4694,12 +4700,16 @@ func parsePowerRankingsText(text string) []struct {
 	lines := strings.Split(text, "\n")
 
 	// Pattern specifically for Last War rankings format
-	// Matches: optional rank badge (R4, R3), name (letters/numbers), then large power number
-	// Examples: "R4 Gary6126 73716853", "Anjel87 57250482", "R3 DYNOSUR 53913479"
-	rankPattern := regexp.MustCompile(`(?:R[0-9]\s+)?([A-Za-z][A-Za-z0-9_\s]*?)\s+([0-9]{7,})`)
+	// Matches: optional rank badge (R4, R3), name (can have spaces), then large power number
+	// Examples: "R4 Gary6126 77421000", "Nutty Tx 61926102", "R3 DYNOSUR 63785308"
+	// Updated to better handle multi-word names
+	rankPattern := regexp.MustCompile(`(?:R[0-9]\s+)?([A-Za-z][A-Za-z0-9_\s]+?)\s+([0-9]{7,})`)
 
-	// Alternative simpler pattern: any word followed by 7+ digit number
-	simplePattern := regexp.MustCompile(`([A-Za-z][A-Za-z0-9_]+)\s+([0-9]{7,})`)
+	// Alternative simpler pattern: captures name with spaces followed by 7+ digit number
+	simplePattern := regexp.MustCompile(`([A-Za-z][A-Za-z0-9_\s]+?)\s+([0-9]{7,})`)
+
+	// Pattern for lines with rank number prefix: "1 Gary6126 R4 77421000" or "1 ileesu R4 66715876"
+	rankPrefixPattern := regexp.MustCompile(`^[0-9]{1,3}\s+([A-Za-z][A-Za-z0-9_\s]+?)\s+(?:R[0-9]\s+)?([0-9]{7,})`)
 
 	// Track seen names to avoid duplicates from multi-line OCR
 	seenNames := make(map[string]bool)
@@ -4728,14 +4738,24 @@ func parsePowerRankingsText(text string) []struct {
 		// Try rank pattern first (for lines with R4, R3, etc.)
 		matches := rankPattern.FindStringSubmatch(line)
 		if len(matches) == 0 {
+			// Try pattern with rank number prefix
+			matches = rankPrefixPattern.FindStringSubmatch(line)
+		}
+		if len(matches) == 0 {
 			// Try simple pattern
 			matches = simplePattern.FindStringSubmatch(line)
 		}
 
 		if len(matches) >= 3 {
 			name := strings.TrimSpace(matches[1])
+			// Clean up extra whitespace in names
+			name = regexp.MustCompile(`\s+`).ReplaceAllString(name, " ")
+
 			powerStr := strings.ReplaceAll(matches[2], ",", "")
 			powerStr = strings.ReplaceAll(powerStr, " ", "")
+			powerStr = strings.ReplaceAll(powerStr, ".", "")  // Remove periods OCR might insert
+			powerStr = strings.ReplaceAll(powerStr, "O", "0") // Replace O with 0 (common OCR error)
+			powerStr = strings.ReplaceAll(powerStr, "o", "0") // Replace o with 0
 
 			power, err := strconv.ParseInt(powerStr, 10, 64)
 
@@ -4751,6 +4771,8 @@ func parsePowerRankingsText(text string) []struct {
 				})
 				seenNames[name] = true
 				log.Printf("Parsed: %s -> %d", name, power)
+			} else if err != nil {
+				log.Printf("Failed to parse power for %s: %s (error: %v)", name, powerStr, err)
 			}
 		}
 	}
