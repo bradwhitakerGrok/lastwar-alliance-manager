@@ -797,7 +797,7 @@ func initDB() error {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		date TEXT NOT NULL UNIQUE,
 		conductor_id INTEGER NOT NULL,
-		backup_id INTEGER NOT NULL,
+		backup_id INTEGER,
 		conductor_score INTEGER,
 		conductor_showed_up BOOLEAN,
 		notes TEXT,
@@ -828,6 +828,63 @@ func initDB() error {
 			return err
 		}
 		log.Println("Database migration: Added conductor_score column to train_schedules table")
+	}
+
+	// Migrate train_schedules to make backup_id nullable (for existing databases)
+	// Check if the table structure needs migration by checking pragma
+	migrationNeeded := false
+	var backupIdNotnull int
+	err = db.QueryRow(`
+		SELECT "notnull"
+		FROM pragma_table_info('train_schedules')
+		WHERE name = 'backup_id'
+	`).Scan(&backupIdNotnull)
+
+	if err == nil && backupIdNotnull == 1 {
+		migrationNeeded = true
+	}
+
+	if migrationNeeded {
+		log.Println("Database migration: Making backup_id nullable in train_schedules table")
+
+		// Create new table with correct schema
+		_, err = db.Exec(`CREATE TABLE train_schedules_new (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			date TEXT NOT NULL UNIQUE,
+			conductor_id INTEGER NOT NULL,
+			backup_id INTEGER,
+			conductor_score INTEGER,
+			conductor_showed_up BOOLEAN,
+			notes TEXT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (conductor_id) REFERENCES members(id) ON DELETE CASCADE,
+			FOREIGN KEY (backup_id) REFERENCES members(id) ON DELETE CASCADE
+		)`)
+		if err != nil {
+			return fmt.Errorf("failed to create new train_schedules table: %v", err)
+		}
+
+		// Copy data from old table
+		_, err = db.Exec(`INSERT INTO train_schedules_new (id, date, conductor_id, backup_id, conductor_score, conductor_showed_up, notes, created_at)
+			SELECT id, date, conductor_id, backup_id, conductor_score, conductor_showed_up, notes, created_at
+			FROM train_schedules`)
+		if err != nil {
+			return fmt.Errorf("failed to copy train_schedules data: %v", err)
+		}
+
+		// Drop old table
+		_, err = db.Exec(`DROP TABLE train_schedules`)
+		if err != nil {
+			return fmt.Errorf("failed to drop old train_schedules table: %v", err)
+		}
+
+		// Rename new table
+		_, err = db.Exec(`ALTER TABLE train_schedules_new RENAME TO train_schedules`)
+		if err != nil {
+			return fmt.Errorf("failed to rename train_schedules_new table: %v", err)
+		}
+
+		log.Println("Database migration: Successfully made backup_id nullable")
 	}
 
 	// Create award_types table
