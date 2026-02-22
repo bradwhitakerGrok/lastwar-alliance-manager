@@ -2383,12 +2383,7 @@ func autoSchedule(w http.ResponseWriter, r *http.Request) {
 			usedBackups[backupID] = true
 		}
 
-		if backupID == 0 {
-			http.Error(w, "No R4/R5 members available for backup", http.StatusBadRequest)
-			return
-		}
-
-		// If backupID is 0, no backup available - continue anyway
+		// If backupID is 0, no backup available - continue anyway and allow manual assignment
 
 		// Insert schedule for this day
 		var result sql.Result
