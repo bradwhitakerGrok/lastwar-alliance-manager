@@ -3686,9 +3686,9 @@ func getMemberTimelines(w http.ResponseWriter, r *http.Request) {
 			for conductorIdx < len(conductorDates) && conductorDates[conductorIdx] <= weekEndStr {
 				if conductorDates[conductorIdx] >= weekStartStr {
 					weekHasReset = true
-				} else {
-					conductorIdx++
+					conductorCountSoFar++
 				}
+				conductorIdx++
 			}
 
 			// Add points from events in this week
