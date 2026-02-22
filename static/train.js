@@ -258,6 +258,74 @@ document.getElementById('copy-daily-message-btn').addEventListener('click', () =
     }, 2000);
 });
 
+// Generate conductor reminder messages
+document.getElementById('generate-conductor-messages-btn').addEventListener('click', async () => {
+    const startDate = formatDate(currentWeekStart);
+    
+    try {
+        const response = await fetch(`/api/train-schedules/conductor-messages?start=${startDate}`);
+        if (!response.ok) throw new Error('Failed to generate conductor messages');
+        
+        const data = await response.json();
+        
+        // Display messages
+        const messagesContainer = document.getElementById('conductor-messages-list');
+        messagesContainer.innerHTML = '';
+        
+        data.messages.forEach((msg, index) => {
+            const messageCard = document.createElement('div');
+            messageCard.className = 'conductor-message-card';
+            messageCard.innerHTML = `
+                <div class="conductor-message-header">
+                    <strong>${msg.day} – ${msg.name}</strong>
+                </div>
+                <div class="conductor-message-content">
+                    <textarea readonly rows="4" id="conductor-msg-${index}">${msg.message}</textarea>
+                </div>
+                <button class="copy-btn copy-conductor-msg" data-index="${index}">📋 Copy Message</button>
+            `;
+            messagesContainer.appendChild(messageCard);
+        });
+        
+        // Show section
+        document.getElementById('conductor-messages-section').style.display = 'block';
+        
+        // Scroll to messages
+        document.getElementById('conductor-messages-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        
+        // Add event listeners to copy buttons
+        document.querySelectorAll('.copy-conductor-msg').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const index = e.target.dataset.index;
+                const textarea = document.getElementById(`conductor-msg-${index}`);
+                textarea.select();
+                document.execCommand('copy');
+                
+                // Visual feedback
+                const originalText = e.target.textContent;
+                e.target.textContent = '✅ Copied!';
+                setTimeout(() => {
+                    e.target.textContent = originalText;
+                }, 2000);
+            });
+        });
+        
+    } catch (error) {
+        console.error('Error generating conductor messages:', error);
+        alert('Failed to generate conductor reminder messages');
+    }
+});
+
+// Auto-schedule week
+    // Visual feedback
+    const btn = document.getElementById('copy-daily-message-btn');
+    const originalText = btn.textContent;
+    btn.textContent = '✅ Copied!';
+    setTimeout(() => {
+        btn.textContent = originalText;
+    }, 2000);
+});
+
 // Load members
 async function loadMembers() {
     try {

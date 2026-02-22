@@ -1642,6 +1642,56 @@ button {
     box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
 }
 
+/* Conductor Messages */
+.conductor-messages-section {
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+}
+
+.conductor-messages-section h3 {
+    color: var(--text-primary);
+    margin-bottom: 10px;
+}
+
+.conductor-messages-section .info-text {
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+    font-size: 14px;
+}
+
+.conductor-messages-list {
+    display: grid;
+    gap: 15px;
+}
+
+.conductor-message-card {
+    background: var(--container-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    padding: 15px;
+}
+
+.conductor-message-header {
+    color: var(--text-primary);
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.conductor-message-content textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 13px;
+    resize: vertical;
+    background: var(--container-bg);
+    color: var(--text-primary);
+    margin-bottom: 10px;
+}
+
 .week-nav-btn {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;

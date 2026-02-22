@@ -4262,6 +4262,89 @@ func generateDailyMessage(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Generate individual conductor reminder messages for the week
+func generateConductorMessages(w http.ResponseWriter, r *http.Request) {
+	startDate := r.URL.Query().Get("start")
+	if startDate == "" {
+		http.Error(w, "start date is required", http.StatusBadRequest)
+		return
+	}
+
+	// Parse start date
+	weekStart, err := parseDate(startDate)
+	if err != nil {
+		http.Error(w, "Invalid date format", http.StatusBadRequest)
+		return
+	}
+
+	// Get schedules for the week
+	weekEnd := weekStart.AddDate(0, 0, 6)
+	rows, err := db.Query(`
+		SELECT 
+			ts.date, m1.name as conductor_name
+		FROM train_schedules ts
+		JOIN members m1 ON ts.conductor_id = m1.id
+		WHERE ts.date >= ? AND ts.date <= ?
+		ORDER BY ts.date
+	`, formatDateString(weekStart), formatDateString(weekEnd))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	// Message variations for natural variety
+	messageTemplates := []string{
+		"Hi {NAME}! Just a reminder that you're the train conductor on {DAY}. Please be online around 15:00 ST / 17:00 UK / 18:00 CET and ask in alliance chat for the train to be assigned to you. If anything comes up, let us know early so we can coordinate with the backup. Thanks for helping keep the train golden 🚆",
+		"Hi {NAME}! You're scheduled as train conductor on {DAY}. Please be online at 15:00 ST / 17:00 UK / 18:00 CET and request the train in alliance chat. If your schedule changes, let us know in advance so we can coordinate with the backup. Appreciate your support 🚆",
+		"Hi {NAME}! Just a heads-up that you're the train conductor on {DAY}. Please be online around 15:00 ST / 17:00 UK / 18:00 CET and ask for the train in alliance chat. If you need help or need to swap, reach out early. Thanks a lot 🚆",
+		"Hi {NAME}! You're assigned as train conductor on {DAY}. Please be online at 15:00 ST / 17:00 UK / 18:00 CET and request the train in alliance chat. If there are any timing issues, let us know so we can plan with the backup. Thanks for stepping up 🚆",
+		"Hi {NAME}! Reminder that you're the train conductor on {DAY}. Please be online around 15:00 ST / 17:00 UK / 18:00 CET and ask in alliance chat for the train assignment. Let us know early if anything changes. Much appreciated 🚆",
+		"Hi {NAME}! You're scheduled as train conductor on {DAY}. Please be online at 15:00 ST / 17:00 UK / 18:00 CET and request the train in alliance chat. If you need assistance or a timing adjustment, just let us know. Thanks 🚆",
+		"Hi {NAME}! Just a reminder that you're the train conductor on {DAY}. Please be online around 15:00 ST / 17:00 UK / 18:00 CET and ask in alliance chat for the train to be assigned. If anything comes up, please reach out early. Thanks for helping the alliance 🚆",
+	}
+
+	type DayMessage struct {
+		Day     string `json:"day"`
+		Name    string `json:"name"`
+		Message string `json:"message"`
+	}
+
+	var messages []DayMessage
+	templateIndex := 0
+
+	for rows.Next() {
+		var date, conductor string
+		if err := rows.Scan(&date, &conductor); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Parse date to get day name
+		dateObj, _ := parseDate(date)
+		dayName := dateObj.Format("Monday")
+
+		// Get template and cycle through them
+		template := messageTemplates[templateIndex]
+		templateIndex = (templateIndex + 1) % len(messageTemplates)
+
+		// Replace placeholders
+		message := strings.ReplaceAll(template, "{NAME}", conductor)
+		message = strings.ReplaceAll(message, "{DAY}", dayName)
+
+		messages = append(messages, DayMessage{
+			Day:     dayName,
+			Name:    conductor,
+			Message: message,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"messages": messages,
+	})
+}
+
 // R4/R5/Admin middleware - checks if user has R4, R5 rank or is admin
 func r4r5Middleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -6136,6 +6219,7 @@ func main() {
 	router.HandleFunc("/api/train-schedules", authMiddleware(getTrainSchedules)).Methods("GET")
 	router.HandleFunc("/api/train-schedules/weekly-message", authMiddleware(generateWeeklyMessage)).Methods("GET")
 	router.HandleFunc("/api/train-schedules/daily-message", authMiddleware(generateDailyMessage)).Methods("GET")
+	router.HandleFunc("/api/train-schedules/conductor-messages", authMiddleware(generateConductorMessages)).Methods("GET")
 	router.HandleFunc("/api/train-schedules/auto-schedule", authMiddleware(autoSchedule)).Methods("POST")
 	router.HandleFunc("/api/train-schedules", authMiddleware(createTrainSchedule)).Methods("POST")
 	router.HandleFunc("/api/train-schedules/{id}", authMiddleware(updateTrainSchedule)).Methods("PUT")
