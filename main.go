@@ -4323,7 +4323,7 @@ func generateConductorMessages(w http.ResponseWriter, r *http.Request) {
 		// Parse date to get day name and formatted date
 		dateObj, _ := parseDate(date)
 		dayName := dateObj.Format("Monday")
-		dateFormatted := dateObj.Format("1/2") // e.g., "1/3" for January 3
+		dateFormatted := dateObj.Format("January 2") // e.g., "January 3" - unambiguous date format
 
 		// Get template and cycle through them
 		template := messageTemplates[templateIndex]
