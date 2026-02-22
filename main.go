@@ -109,6 +109,19 @@ type Recommendation struct {
 	Expired         bool   `json:"expired"`
 }
 
+type DynoRecommendation struct {
+	ID          int    `json:"id"`
+	MemberID    int    `json:"member_id"`
+	MemberName  string `json:"member_name"`
+	MemberRank  string `json:"member_rank"`
+	Points      int    `json:"points"`
+	Notes       string `json:"notes"`
+	CreatedBy   string `json:"created_by"`
+	CreatedByID int    `json:"created_by_id"`
+	CreatedAt   string `json:"created_at"`
+	Expired     bool   `json:"expired"`
+}
+
 type WeekAwards struct {
 	WeekDate string             `json:"week_date"`
 	Awards   map[string][]Award `json:"awards"`
@@ -918,6 +931,23 @@ func initDB() error {
 	);`
 
 	_, err = db.Exec(createRecommendationsSQL)
+	if err != nil {
+		return err
+	}
+
+	// Create dyno recommendations table (informal feedback that expires after 1 week)
+	createDynoRecommendationsSQL := `CREATE TABLE IF NOT EXISTS dyno_recommendations (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		member_id INTEGER NOT NULL,
+		points INTEGER NOT NULL,
+		notes TEXT NOT NULL,
+		created_by_id INTEGER NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+		FOREIGN KEY (created_by_id) REFERENCES users(id) ON DELETE CASCADE
+	);`
+
+	_, err = db.Exec(createDynoRecommendationsSQL)
 	if err != nil {
 		return err
 	}
@@ -3174,6 +3204,167 @@ func deleteRecommendation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = db.Exec("DELETE FROM recommendations WHERE id = ?", id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Get dyno recommendations (expires after 1 week)
+func getDynoRecommendations(w http.ResponseWriter, r *http.Request) {
+	rows, err := db.Query(`
+		SELECT 
+			dr.id, 
+			dr.member_id, 
+			m.name, 
+			m.rank,
+			dr.points,
+			dr.notes,
+			u.username,
+			dr.created_by_id,
+			dr.created_at,
+			CASE 
+				WHEN datetime(dr.created_at, '+7 days') < datetime('now') THEN 1
+				ELSE 0
+			END as expired
+		FROM dyno_recommendations dr
+		JOIN members m ON dr.member_id = m.id
+		JOIN users u ON dr.created_by_id = u.id
+		ORDER BY dr.created_at DESC
+	`)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	dynoRecs := []DynoRecommendation{}
+	for rows.Next() {
+		var dr DynoRecommendation
+		if err := rows.Scan(&dr.ID, &dr.MemberID, &dr.MemberName, &dr.MemberRank,
+			&dr.Points, &dr.Notes, &dr.CreatedBy, &dr.CreatedByID, &dr.CreatedAt, &dr.Expired); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		dynoRecs = append(dynoRecs, dr)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(dynoRecs)
+}
+
+// Create dyno recommendation
+func createDynoRecommendation(w http.ResponseWriter, r *http.Request) {
+	session, _ := store.Get(r, "session")
+	userID := session.Values["user_id"].(int)
+
+	var input struct {
+		MemberID int    `json:"member_id"`
+		Points   int    `json:"points"`
+		Notes    string `json:"notes"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if input.MemberID == 0 {
+		http.Error(w, "Member ID is required", http.StatusBadRequest)
+		return
+	}
+
+	if input.Notes == "" {
+		http.Error(w, "Notes are required", http.StatusBadRequest)
+		return
+	}
+
+	// Check if member exists
+	var exists bool
+	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM members WHERE id = ?)", input.MemberID).Scan(&exists)
+	if err != nil || !exists {
+		http.Error(w, "Member not found", http.StatusNotFound)
+		return
+	}
+
+	result, err := db.Exec(
+		"INSERT INTO dyno_recommendations (member_id, points, notes, created_by_id) VALUES (?, ?, ?, ?)",
+		input.MemberID, input.Points, input.Notes, userID,
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	id, _ := result.LastInsertId()
+
+	// Get the created dyno recommendation
+	var dr DynoRecommendation
+	err = db.QueryRow(`
+		SELECT 
+			dr.id, 
+			dr.member_id, 
+			m.name, 
+			m.rank,
+			dr.points,
+			dr.notes,
+			u.username,
+			dr.created_by_id,
+			dr.created_at,
+			CASE 
+				WHEN datetime(dr.created_at, '+7 days') < datetime('now') THEN 1
+				ELSE 0
+			END as expired
+		FROM dyno_recommendations dr
+		JOIN members m ON dr.member_id = m.id
+		JOIN users u ON dr.created_by_id = u.id
+		WHERE dr.id = ?
+	`, id).Scan(&dr.ID, &dr.MemberID, &dr.MemberName, &dr.MemberRank,
+		&dr.Points, &dr.Notes, &dr.CreatedBy, &dr.CreatedByID, &dr.CreatedAt, &dr.Expired)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(dr)
+}
+
+// Delete dyno recommendation
+func deleteDynoRecommendation(w http.ResponseWriter, r *http.Request) {
+	session, _ := store.Get(r, "session")
+	userID := session.Values["user_id"].(int)
+	isAdmin := session.Values["is_admin"].(bool)
+
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	// Check if user is the one who created the recommendation or is admin
+	var createdByID int
+	err = db.QueryRow("SELECT created_by_id FROM dyno_recommendations WHERE id = ?", id).Scan(&createdByID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Dyno recommendation not found", http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if createdByID != userID && !isAdmin {
+		http.Error(w, "You can only delete your own dyno recommendations", http.StatusForbidden)
+		return
+	}
+
+	_, err = db.Exec("DELETE FROM dyno_recommendations WHERE id = ?", id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -5922,6 +6113,11 @@ func main() {
 	router.HandleFunc("/api/recommendations", authMiddleware(getRecommendations)).Methods("GET")
 	router.HandleFunc("/api/recommendations", authMiddleware(createRecommendation)).Methods("POST")
 	router.HandleFunc("/api/recommendations/{id}", authMiddleware(deleteRecommendation)).Methods("DELETE")
+
+	// Dyno Recommendations routes (protected)
+	router.HandleFunc("/api/dyno-recommendations", authMiddleware(getDynoRecommendations)).Methods("GET")
+	router.HandleFunc("/api/dyno-recommendations", authMiddleware(createDynoRecommendation)).Methods("POST")
+	router.HandleFunc("/api/dyno-recommendations/{id}", authMiddleware(deleteDynoRecommendation)).Methods("DELETE")
 
 	// Settings routes (protected)
 	router.HandleFunc("/api/settings", authMiddleware(getSettings)).Methods("GET")
