@@ -4295,13 +4295,13 @@ func generateConductorMessages(w http.ResponseWriter, r *http.Request) {
 
 	// Message variations for natural variety
 	messageTemplates := []string{
-		"Hi {NAME}! Just a reminder that you're the train conductor on {DAY}. Please be online around 15:00 ST / 17:00 UK / 18:00 CET and ask in alliance chat for the train to be assigned to you. If anything comes up, let us know early so we can coordinate with the backup. Thanks for helping keep the train golden 🚆",
-		"Hi {NAME}! You're scheduled as train conductor on {DAY}. Please be online at 15:00 ST / 17:00 UK / 18:00 CET and request the train in alliance chat. If your schedule changes, let us know in advance so we can coordinate with the backup. Appreciate your support 🚆",
-		"Hi {NAME}! Just a heads-up that you're the train conductor on {DAY}. Please be online around 15:00 ST / 17:00 UK / 18:00 CET and ask for the train in alliance chat. If you need help or need to swap, reach out early. Thanks a lot 🚆",
-		"Hi {NAME}! You're assigned as train conductor on {DAY}. Please be online at 15:00 ST / 17:00 UK / 18:00 CET and request the train in alliance chat. If there are any timing issues, let us know so we can plan with the backup. Thanks for stepping up 🚆",
-		"Hi {NAME}! Reminder that you're the train conductor on {DAY}. Please be online around 15:00 ST / 17:00 UK / 18:00 CET and ask in alliance chat for the train assignment. Let us know early if anything changes. Much appreciated 🚆",
-		"Hi {NAME}! You're scheduled as train conductor on {DAY}. Please be online at 15:00 ST / 17:00 UK / 18:00 CET and request the train in alliance chat. If you need assistance or a timing adjustment, just let us know. Thanks 🚆",
-		"Hi {NAME}! Just a reminder that you're the train conductor on {DAY}. Please be online around 15:00 ST / 17:00 UK / 18:00 CET and ask in alliance chat for the train to be assigned. If anything comes up, please reach out early. Thanks for helping the alliance 🚆",
+		"Hi {NAME}! Just a reminder that you're the train conductor on {DAY}, {DATE}. Please be online around 15:00 ST / 17:00 UK / 18:00 CET and ask in alliance chat for the train to be assigned to you. If anything comes up, let us know early so we can coordinate with the backup. Please add a reminder in your phone so you don't forget. Thanks for helping keep the train golden!",
+		"Hi {NAME}! You're scheduled as train conductor on {DAY}, {DATE}. Please be online at 15:00 ST / 17:00 UK / 18:00 CET and request the train in alliance chat. If your schedule changes, let us know in advance so we can coordinate with the backup. Add a reminder in your phone to make sure you're on time. Appreciate your support!",
+		"Hi {NAME}! Just a heads-up that you're the train conductor on {DAY}, {DATE}. Please be online around 15:00 ST / 17:00 UK / 18:00 CET and ask for the train in alliance chat. If you need help or need to swap, reach out early. Set a phone reminder so you don't miss it. Thanks a lot!",
+		"Hi {NAME}! You're assigned as train conductor on {DAY}, {DATE}. Please be online at 15:00 ST / 17:00 UK / 18:00 CET and request the train in alliance chat. If there are any timing issues, let us know so we can plan with the backup. Don't forget to add a reminder in your phone. Thanks for stepping up!",
+		"Hi {NAME}! Reminder that you're the train conductor on {DAY}, {DATE}. Please be online around 15:00 ST / 17:00 UK / 18:00 CET and ask in alliance chat for the train assignment. Let us know early if anything changes. Make sure to set a phone reminder. Much appreciated!",
+		"Hi {NAME}! You're scheduled as train conductor on {DAY}, {DATE}. Please be online at 15:00 ST / 17:00 UK / 18:00 CET and request the train in alliance chat. If you need assistance or a timing adjustment, just let us know. Add a phone reminder to help you remember. Thanks!",
+		"Hi {NAME}! Just a reminder that you're the train conductor on {DAY}, {DATE}. Please be online around 15:00 ST / 17:00 UK / 18:00 CET and ask in alliance chat for the train to be assigned. If anything comes up, please reach out early. Set a reminder in your phone so you're prepared. Thanks for helping the alliance!",
 	}
 
 	type DayMessage struct {
@@ -4320,9 +4320,10 @@ func generateConductorMessages(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Parse date to get day name
+		// Parse date to get day name and formatted date
 		dateObj, _ := parseDate(date)
 		dayName := dateObj.Format("Monday")
+		dateFormatted := dateObj.Format("1/2") // e.g., "1/3" for January 3
 
 		// Get template and cycle through them
 		template := messageTemplates[templateIndex]
@@ -4331,6 +4332,7 @@ func generateConductorMessages(w http.ResponseWriter, r *http.Request) {
 		// Replace placeholders
 		message := strings.ReplaceAll(template, "{NAME}", conductor)
 		message = strings.ReplaceAll(message, "{DAY}", dayName)
+		message = strings.ReplaceAll(message, "{DATE}", dateFormatted)
 
 		messages = append(messages, DayMessage{
 			Day:     dayName,
