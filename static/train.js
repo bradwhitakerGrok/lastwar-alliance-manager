@@ -316,16 +316,6 @@ document.getElementById('generate-conductor-messages-btn').addEventListener('cli
     }
 });
 
-// Auto-schedule week
-    // Visual feedback
-    const btn = document.getElementById('copy-daily-message-btn');
-    const originalText = btn.textContent;
-    btn.textContent = '✅ Copied!';
-    setTimeout(() => {
-        btn.textContent = originalText;
-    }, 2000);
-});
-
 // Load members
 async function loadMembers() {
     try {
