@@ -2222,15 +2222,12 @@ func createTrainSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Use INSERT OR REPLACE to allow updating schedules created by auto-schedule
 	result, err := db.Exec(
-		"INSERT INTO train_schedules (date, conductor_id, backup_id, conductor_score, conductor_showed_up, notes) VALUES (?, ?, ?, ?, ?, ?)",
+		"INSERT OR REPLACE INTO train_schedules (date, conductor_id, backup_id, conductor_score, conductor_showed_up, notes) VALUES (?, ?, ?, ?, ?, ?)",
 		ts.Date, ts.ConductorID, ts.BackupID, ts.ConductorScore, ts.ConductorShowedUp, ts.Notes)
 	if err != nil {
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			http.Error(w, "Schedule already exists for this date", http.StatusConflict)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
