@@ -484,9 +484,10 @@ function openScheduleModal(dateStr) {
     // Show/hide attendance group
     const attendanceGroup = document.getElementById('attendance-group');
     const dateObj = new Date(dateStr + 'T00:00:00');
-    const isPast = dateObj < new Date(new Date().setHours(0, 0, 0, 0));
+    const today = new Date(new Date().setHours(0, 0, 0, 0));
+    const isNotFuture = dateObj <= today;
     
-    if (isPast && schedule) {
+    if (isNotFuture && schedule) {
         attendanceGroup.style.display = 'block';
         if (schedule.conductor_showed_up !== null) {
             document.querySelector(`input[name="attendance"][value="${schedule.conductor_showed_up ? 'yes' : 'no'}"]`).checked = true;
