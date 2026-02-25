@@ -2656,6 +2656,46 @@ button {
     color: white;
 }
 
+/* Charts Section */
+.charts-section {
+    background: var(--container-bg);
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+    margin-bottom: 30px;
+}
+
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 25px;
+    margin-top: 20px;
+}
+
+.chart-container {
+    background: var(--section-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    min-height: 300px;
+}
+
+.chart-container.full-width {
+    grid-column: 1 / -1;
+}
+
+.chart-container h4 {
+    margin: 0 0 15px 0;
+    color: var(--text-primary);
+    font-size: 1.1em;
+    text-align: center;
+}
+
+.chart-container canvas {
+    max-height: 300px;
+}
+
 /* Grouped View Styles */
 .grouped-card {
     background: var(--container-bg);

@@ -8,6 +8,11 @@ let currentUserId = 0;
 let currentView = 'list'; // 'list' or 'grouped'
 let currentFilter = 'all'; // 'all', 'active', 'positive', 'negative', 'mine'
 
+// Chart instances
+let pointsChart = null;
+let membersChart = null;
+let timelineChart = null;
+
 // Check authentication
 async function checkAuth() {
     try {
@@ -159,6 +164,7 @@ async function loadDynoRecommendations() {
         const response = await fetch(API_URL);
         allDynoRecs = await response.json();
         updateStatistics();
+        updateCharts();
         renderDynoRecommendations();
     } catch (error) {
         console.error('Error loading dyno recommendations:', error);
@@ -177,6 +183,261 @@ function updateStatistics() {
     document.getElementById('positive-dyno').textContent = positive.length;
     document.getElementById('negative-dyno').textContent = negative.length;
     document.getElementById('expired-dyno').textContent = expired.length;
+}
+
+// Update all charts
+function updateCharts() {
+    updatePointsChart();
+    updateMembersChart();
+    updateTimelineChart();
+}
+
+// Create/Update Points Distribution Chart
+function updatePointsChart() {
+    const ctx = document.getElementById('points-chart');
+    if (!ctx) return;
+    
+    const active = allDynoRecs.filter(r => !r.expired);
+    const positiveCount = active.filter(r => r.points > 0).length;
+    const negativeCount = active.filter(r => r.points < 0).length;
+    const neutralCount = active.filter(r => r.points === 0).length;
+    
+    if (pointsChart) {
+        pointsChart.destroy();
+    }
+    
+    pointsChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Positive', 'Negative', 'Neutral'],
+            datasets: [{
+                data: [positiveCount, negativeCount, neutralCount],
+                backgroundColor: [
+                    'rgba(67, 233, 123, 0.8)',
+                    'rgba(245, 87, 108, 0.8)',
+                    'rgba(156, 163, 175, 0.8)'
+                ],
+                borderColor: [
+                    'rgba(67, 233, 123, 1)',
+                    'rgba(245, 87, 108, 1)',
+                    'rgba(156, 163, 175, 1)'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        font: { size: 12 }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.parsed || 0;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return `${label}: ${value} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Create/Update Top Members Chart
+function updateMembersChart() {
+    const ctx = document.getElementById('members-chart');
+    if (!ctx) return;
+    
+    const active = allDynoRecs.filter(r => !r.expired);
+    
+    // Calculate net points per member
+    const memberPoints = {};
+    active.forEach(rec => {
+        if (!memberPoints[rec.member_name]) {
+            memberPoints[rec.member_name] = 0;
+        }
+        memberPoints[rec.member_name] += rec.points;
+    });
+    
+    // Sort and get top 10 by absolute value
+    const sorted = Object.entries(memberPoints)
+        .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+        .slice(0, 10);
+    
+    const labels = sorted.map(([name]) => name);
+    const data = sorted.map(([, points]) => points);
+    const colors = data.map(points => points >= 0 ? 'rgba(67, 233, 123, 0.8)' : 'rgba(245, 87, 108, 0.8)');
+    const borderColors = data.map(points => points >= 0 ? 'rgba(67, 233, 123, 1)' : 'rgba(245, 87, 108, 1)');
+    
+    if (membersChart) {
+        membersChart.destroy();
+    }
+    
+    membersChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Net Points',
+                data: data,
+                backgroundColor: colors,
+                borderColor: borderColors,
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            indexAxis: 'y',
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed.x;
+                            return `Net Points: ${value > 0 ? '+' : ''}${value}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                y: {
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Create/Update Timeline Chart
+function updateTimelineChart() {
+    const ctx = document.getElementById('timeline-chart');
+    if (!ctx) return;
+    
+    // Get last 7 days
+    const today = new Date();
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        days.push(date);
+    }
+    
+    const labels = days.map(d => {
+        const month = (d.getMonth() + 1).toString().padStart(2, '0');
+        const day = d.getDate().toString().padStart(2, '0');
+        return `${month}/${day}`;
+    });
+    
+    // Count recommendations per day
+    const positiveData = days.map(date => {
+        const dateStr = formatDateOnly(date);
+        return allDynoRecs.filter(rec => {
+            const recDate = formatDateOnly(new Date(rec.created_at));
+            return recDate === dateStr && rec.points > 0;
+        }).length;
+    });
+    
+    const negativeData = days.map(date => {
+        const dateStr = formatDateOnly(date);
+        return allDynoRecs.filter(rec => {
+            const recDate = formatDateOnly(new Date(rec.created_at));
+            return recDate === dateStr && rec.points < 0;
+        }).length;
+    });
+    
+    if (timelineChart) {
+        timelineChart.destroy();
+    }
+    
+    timelineChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Positive',
+                data: positiveData,
+                borderColor: 'rgba(67, 233, 123, 1)',
+                backgroundColor: 'rgba(67, 233, 123, 0.1)',
+                tension: 0.3,
+                fill: true,
+                pointRadius: 4,
+                pointHoverRadius: 6
+            }, {
+                label: 'Negative',
+                data: negativeData,
+                borderColor: 'rgba(245, 87, 108, 1)',
+                backgroundColor: 'rgba(245, 87, 108, 0.1)',
+                tension: 0.3,
+                fill: true,
+                pointRadius: 4,
+                pointHoverRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.dataset.label}: ${context.parsed.y} dynos`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Helper function to format date as YYYY-MM-DD
+function formatDateOnly(date) {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 // Render dyno recommendations

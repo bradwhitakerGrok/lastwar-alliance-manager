@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dyno Recommendations - Last War Alliance</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -86,6 +87,24 @@
                             <div class="stat-value" id="expired-dyno">0</div>
                             <div class="stat-label">Expired</div>
                         </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="charts-section">
+                <h3>📈 Dyno Analytics</h3>
+                <div class="charts-grid">
+                    <div class="chart-container">
+                        <h4>Points Distribution</h4>
+                        <canvas id="points-chart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h4>Top Members by Net Points</h4>
+                        <canvas id="members-chart"></canvas>
+                    </div>
+                    <div class="chart-container full-width">
+                        <h4>Daily Dyno Activity (Last 7 Days)</h4>
+                        <canvas id="timeline-chart"></canvas>
                     </div>
                 </div>
             </section>
