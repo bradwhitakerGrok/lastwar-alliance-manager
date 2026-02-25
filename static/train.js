@@ -9,6 +9,8 @@ let backupMembers = [];
 let schedules = {};
 let allHistory = [];
 let currentUsername = '';
+let currentUserRank = '';
+let isAdmin = false;
 
 // Check authentication on page load
 async function checkAuth() {
@@ -22,6 +24,9 @@ async function checkAuth() {
         }
         
         currentUsername = data.username;
+        currentUserRank = data.rank || '';
+        isAdmin = data.is_admin || false;
+        
         let displayText = `👤 ${currentUsername}`;
         if (data.rank) {
             displayText += ` (${data.rank})`;
@@ -34,6 +39,11 @@ async function checkAuth() {
         window.location.href = '/login.html';
         return false;
     }
+}
+
+// Check if user can edit train schedules (R4, R5, or admin)
+function canEditSchedule() {
+    return isAdmin || currentUserRank === 'R4' || currentUserRank === 'R5';
 }
 
 // Setup event listeners after auth check
@@ -168,8 +178,8 @@ function hideWeeklyMessage() {
     document.getElementById('weekly-message-section').style.display = 'none';
 }
 
-// Generate weekly message
-document.getElementById('generate-message-btn').addEventListener('click', async () => {
+// Generate weekly message (will be setup in init if user has permission)
+async function generateWeeklyMessage() {
     const startDate = formatDate(currentWeekStart);
     
     try {
@@ -186,7 +196,7 @@ document.getElementById('generate-message-btn').addEventListener('click', async 
         console.error('Error generating message:', error);
         alert('Failed to generate weekly message');
     }
-});
+}
 
 // Copy message to clipboard
 document.getElementById('copy-message-btn').addEventListener('click', () => {
@@ -203,8 +213,8 @@ document.getElementById('copy-message-btn').addEventListener('click', () => {
     }, 2000);
 });
 
-// Generate daily message
-document.getElementById('generate-daily-message-btn').addEventListener('click', () => {
+// Generate daily message (will be setup in init if user has permission)
+function showDailyMessageSection() {
     // Show the daily message section with date picker
     document.getElementById('daily-message-section').style.display = 'block';
     
@@ -214,7 +224,7 @@ document.getElementById('generate-daily-message-btn').addEventListener('click', 
     
     // Scroll to message section
     document.getElementById('daily-message-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-});
+}
 
 // Load daily message for selected date
 document.getElementById('load-daily-message-btn').addEventListener('click', async () => {
@@ -258,8 +268,8 @@ document.getElementById('copy-daily-message-btn').addEventListener('click', () =
     }, 2000);
 });
 
-// Generate conductor reminder messages
-document.getElementById('generate-conductor-messages-btn').addEventListener('click', async () => {
+// Generate conductor reminder messages (will be setup in init if user has permission)
+async function generateConductorMessages() {
     const startDate = formatDate(currentWeekStart);
     
     try {
@@ -314,7 +324,7 @@ document.getElementById('generate-conductor-messages-btn').addEventListener('cli
         console.error('Error generating conductor messages:', error);
         alert('Failed to generate conductor reminder messages');
     }
-});
+}
 
 // Load members
 async function loadMembers() {
@@ -417,18 +427,21 @@ function renderScheduleGrid() {
             if (schedule.notes) {
                 html += `<div class="notes"><strong>Notes:</strong> ${escapeHtml(schedule.notes)}</div>`;
             }
-            html += `<div class="schedule-actions">`;
-            html += `<button class="edit-schedule-btn" onclick="editSchedule('${dateStr}')">✏️ Edit</button>`;
-            html += `<button class="clear-schedule-btn" onclick="clearSchedule(${schedule.id}, '${dateStr}')">🗑️ Clear</button>`;
-            html += `</div>`;
+            if (canEditSchedule()) {
+                html += `<div class="schedule-actions">`;
+                html += `<button class="edit-schedule-btn" onclick="editSchedule('${dateStr}')">✏️ Edit</button>`;
+                html += `<button class="clear-schedule-btn" onclick="clearSchedule(${schedule.id}, '${dateStr}')">🗑️ Clear</button>`;
+                html += `</div>`;
+            }
             html += `</div>`;
         } else {
             html += `<div class="no-schedule">`;
             html += `<p>Not scheduled</p>`;
-            html += `<div class="schedule-actions">`;
-            html += `<button class="schedule-btn" onclick="openScheduleModal('${dateStr}')">✏️ Schedule</button>`;
-
-            html += `</div>`;
+            if (canEditSchedule()) {
+                html += `<div class="schedule-actions">`;
+                html += `<button class="schedule-btn" onclick="openScheduleModal('${dateStr}')">✏️ Schedule</button>`;
+                html += `</div>`;
+            }
             html += `</div>`;
         }
         
@@ -440,6 +453,11 @@ function renderScheduleGrid() {
 
 // Open schedule modal
 function openScheduleModal(dateStr) {
+    if (!canEditSchedule()) {
+        alert('Only R4, R5 ranks and admins can edit the train schedule.');
+        return;
+    }
+    
     const modal = document.getElementById('schedule-modal');
     const form = document.getElementById('schedule-form');
     const schedule = schedules[dateStr];
@@ -607,6 +625,10 @@ function filterSelectOptions(selectElement, searchTerm) {
 
 // Edit schedule
 function editSchedule(dateStr) {
+    if (!canEditSchedule()) {
+        alert('Only R4, R5 ranks and admins can edit the train schedule.');
+        return;
+    }
     openScheduleModal(dateStr);
 }
 
@@ -675,6 +697,15 @@ document.getElementById('schedule-form').addEventListener('submit', async (e) =>
 
 // Clear schedule for a day
 async function clearSchedule(scheduleId, dateStr) {
+    if (!canEditSchedule()) {
+        alert('Only R4, R5 ranks and admins can edit the train schedule.');
+        return;
+    }
+    
+    if (!confirm('Are you sure you want to clear this schedule?')) {
+        return;
+    }
+    
     try {
         const response = await fetch(`${API_URL}/${scheduleId}`, {
             method: 'DELETE'
@@ -815,9 +846,6 @@ function escapeHtml(text) {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
-    // Auto-schedule week button
-    document.getElementById('auto-schedule-week-btn').addEventListener('click', autoScheduleWeek);
-    
     const isAuthenticated = await checkAuth();
     if (isAuthenticated) {
         await setupEventListeners();
@@ -825,5 +853,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         initializeWeek();
         await loadSchedules();
         await loadHistory();
+        
+        // Setup editing controls based on permissions
+        if (canEditSchedule()) {
+            document.getElementById('auto-schedule-week-btn').addEventListener('click', autoScheduleWeek);
+            document.getElementById('generate-message-btn').addEventListener('click', generateWeeklyMessage);
+            document.getElementById('generate-daily-message-btn').addEventListener('click', showDailyMessageSection);
+            document.getElementById('generate-conductor-messages-btn').addEventListener('click', generateConductorMessages);
+        } else {
+            // Show read-only notice
+            document.getElementById('read-only-notice').style.display = 'block';
+            
+            // Hide action buttons for read-only users
+            document.querySelectorAll('.schedule-controls .action-buttons button').forEach(btn => {
+                btn.style.display = 'none';
+            });
+        }
     }
 });
