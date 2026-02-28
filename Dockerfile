@@ -1,10 +1,12 @@
 # Build stage
 FROM golang:1.21-alpine AS builder
 
-# Install build dependencies + Tesseract Dev headers + pkgconfig
+# Install all necessary build tools: 
+# build-base includes gcc and g++ (required for CGO and gosseract)
+# pkgconfig helps Go find the C-library paths
+# tesseract-ocr-dev and leptonica-dev are the "blueprints" for the OCR engine
 RUN apk add --no-cache \
-    gcc \
-    musl-dev \
+    build-base \
     sqlite-dev \
     tesseract-ocr-dev \
     leptonica-dev \
@@ -12,20 +14,21 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-# Copy go mod files
+# Copy go mod files and download dependencies
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source code
+# Copy the rest of the source code
 COPY . .
 
-# Build with CGO enabled
+# Build the application with CGO enabled (required for SQLite and OCR)
 RUN CGO_ENABLED=1 GOOS=linux go build -o main .
 
 # Runtime stage
 FROM alpine:latest
 
-# Install runtime dependencies + Tesseract OCR Engine & English Data
+# Install runtime dependencies
+# tesseract-ocr-data-eng is the English language pack for the OCR to work
 RUN apk add --no-cache \
     ca-certificates \
     sqlite-libs \
@@ -34,18 +37,18 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-# Copy binary and assets from builder
+# Copy the compiled binary and the web assets from the builder stage
 COPY --from=builder /app/main .
 COPY --from=builder /app/static ./static
 
-# Create data directory (matches Azure mount point)
+# Create the data directory (This will be where we mount our Azure File Share)
 RUN mkdir -p /data
 
-# Expose port
+# Expose the internal port the Go app listens on
 EXPOSE 8080
 
-# Set environment variable for database location
+# Set the environment variable so the app knows where to save the database
 ENV DATABASE_PATH=/data/alliance.db
 
-# Run the application
+# Start the application
 CMD ["./main"]
