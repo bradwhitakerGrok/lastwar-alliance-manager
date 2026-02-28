@@ -33,7 +33,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: tags: 2tnwreistry2181.azurecr.io/lastwar-alliance-manager:latest
+          tags: 2tnwreistry2181.azurecr.io/lastwar-alliance-manager:latest
           file: ./Dockerfile
 
   deploy:
@@ -62,3 +62,4 @@ jobs:
           images: '2tnwreistry2181.azurecr.io/lastwar-alliance-manager:latest'
 
           
+
