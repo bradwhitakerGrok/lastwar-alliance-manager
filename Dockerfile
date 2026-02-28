@@ -1,13 +1,14 @@
 # Build stage
 FROM golang:1.21-alpine AS builder
 
-# Install build dependencies + Tesseract Development headers
+# Install build dependencies + Tesseract Dev headers + pkgconfig
 RUN apk add --no-cache \
     gcc \
     musl-dev \
     sqlite-dev \
     tesseract-ocr-dev \
-    leptonica-dev
+    leptonica-dev \
+    pkgconfig
 
 WORKDIR /app
 
@@ -18,7 +19,7 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application with CGO enabled
+# Build with CGO enabled
 RUN CGO_ENABLED=1 GOOS=linux go build -o main .
 
 # Runtime stage
@@ -37,7 +38,7 @@ WORKDIR /app
 COPY --from=builder /app/main .
 COPY --from=builder /app/static ./static
 
-# Create data directory (Matches your Azure mount point)
+# Create data directory (matches Azure mount point)
 RUN mkdir -p /data
 
 # Expose port
