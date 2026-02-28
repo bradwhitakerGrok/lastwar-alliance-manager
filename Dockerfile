@@ -1,8 +1,13 @@
 # Build stage
 FROM golang:1.21-alpine AS builder
 
-# Install build dependencies
-RUN apk add --no-cache gcc musl-dev sqlite-dev
+# Install build dependencies + Tesseract Development headers
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    sqlite-dev \
+    tesseract-ocr-dev \
+    leptonica-dev
 
 WORKDIR /app
 
@@ -13,22 +18,26 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application with CGO enabled
 RUN CGO_ENABLED=1 GOOS=linux go build -o main .
 
 # Runtime stage
 FROM alpine:latest
 
-# Install runtime dependencies
-RUN apk add --no-cache ca-certificates sqlite-libs
+# Install runtime dependencies + Tesseract OCR Engine & English Data
+RUN apk add --no-cache \
+    ca-certificates \
+    sqlite-libs \
+    tesseract-ocr \
+    tesseract-ocr-data-eng
 
 WORKDIR /app
 
-# Copy binary from builder
+# Copy binary and assets from builder
 COPY --from=builder /app/main .
 COPY --from=builder /app/static ./static
 
-# Create data directory for SQLite database
+# Create data directory (Matches your Azure mount point)
 RUN mkdir -p /data
 
 # Expose port
